@@ -1,7 +1,6 @@
 package com.fengsheng.skill
 
 import com.fengsheng.*
-import com.fengsheng.RobotPlayer.Companion.bestCardOrNull
 import com.fengsheng.card.Card
 import com.fengsheng.protos.Common.color.Blue
 import com.fengsheng.protos.Fengsheng.end_receive_phase_tos
@@ -32,7 +31,7 @@ class AnCangShaJi : TriggeredSkill {
             }
             event.sender.alive && event.inFrontOfWhom.alive || return@findEvent false
             Blue in event.messageCard.colors || return@findEvent false
-            askWhom.cards.isNotEmpty() || target.cards.isNotEmpty()
+            askWhom.messageCards.any { it.isPureBlack() } || target.cards.isNotEmpty()
         } ?: return null
         return ResolveResult(ExecuteAnCangShaJi(g.fsm!!, event, askWhom, target), true)
     }
@@ -80,15 +79,15 @@ class AnCangShaJi : TriggeredSkill {
             var card: Card? = null
             var handCard: Card? = null
             if (message.cardId != 0) {
-                card = r.findCard(message.cardId)
+                card = r.findMessageCard(message.cardId)
                 if (card == null) {
-                    logger.error("没有这张牌")
-                    player.sendErrorMessage("没有这张牌")
+                    logger.error("没有这张情报")
+                    player.sendErrorMessage("没有这张情报")
                     return null
                 }
                 if (!card.isPureBlack()) {
-                    logger.error("你选择的不是纯黑色牌")
-                    player.sendErrorMessage("你选择的不是纯黑色牌")
+                    logger.error("你选择的不是纯黑色情报")
+                    player.sendErrorMessage("你选择的不是纯黑色情报")
                     return null
                 }
             } else {
@@ -104,17 +103,19 @@ class AnCangShaJi : TriggeredSkill {
                 logger.info("${r}发动了[暗藏杀机]，抽取了${target}一张$handCard")
                 target.deleteCard(handCard!!.id)
                 r.cards.add(handCard)
-                r.game!!.addEvent(GiveCardEvent(event.whoseTurn, target, r))
+                if (r !== target)
+                    r.game!!.addEvent(GiveCardEvent(event.whoseTurn, target, r))
             } else {
-                logger.info("${r}发动了[暗藏杀机]，将${card}置入${target}的情报区")
-                r.deleteCard(card.id)
+                logger.info("${r}发动了[暗藏杀机]，将自己面前的${card}置入${target}的情报区")
+                r.deleteMessageCard(card.id)
                 target.messageCards.add(card)
-                r.game!!.addEvent(AddMessageCardEvent(event.whoseTurn))
+                if (r !== target)
+                    r.game!!.addEvent(AddMessageCardEvent(event.whoseTurn))
             }
             r.game!!.players.send { p ->
                 skillAnCangShaJiToc {
                     playerId = p.getAlternativeLocation(r.location)
-                    card?.let { this.card = it.toPbCard() }
+                    cardId = message.cardId
                     targetPlayerId = p.getAlternativeLocation(target.location)
                     if (p === r || p === target) handCard?.let { this.handCard = it.toPbCard() }
                 }
@@ -128,12 +129,14 @@ class AnCangShaJi : TriggeredSkill {
             if (fsm0 !is ExecuteAnCangShaJi) return false
             val p = fsm0.r
             val target = fsm0.target
-            var card = p.cards.filter { it.isPureBlack() }.bestCardOrNull(p.identity, true)
+            p !== target || return false
+            var card = p.messageCards.find { it.isPureBlack() }
             if (card != null) {
-                val v = p.calculateMessageCardValue(fsm0.event.whoseTurn, target, card)
-                if (v <= 0) card = null
+                val v1 = p.calculateRemoveCardValue(fsm0.event.whoseTurn, p, card)
+                val v2 = p.calculateMessageCardValue(fsm0.event.whoseTurn, target, card)
+                if (v1 + v2 <= 0) card = null
             }
-            if (card != null || p !== target && target.cards.isNotEmpty()) {
+            if (card != null || target.cards.isNotEmpty()) {
                 GameExecutor.post(p.game!!, {
                     p.game!!.tryContinueResolveProtocol(p, skillAnCangShaJiTos { card?.let { cardId = it.id } })
                 }, 3, TimeUnit.SECONDS)
