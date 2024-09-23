@@ -102,7 +102,8 @@ object QQPusher {
                 else "+0"
             val rank = ScoreFactory.getRankNameByScore(newScore)
             lines.add("$name,$roleName,$identity,$result,$rank,$newScore($addScoreStr)")
-            map[name] = "$roleName,$identity,$result,$rank,$newScore($addScoreStr)"
+            if (player is HumanPlayer)
+                map[name] = "$roleName,$identity,$result,$rank,$newScore($addScoreStr)"
         }
         val text = lines.joinToString(separator = "\n")
         val at = runBlocking {
