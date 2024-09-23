@@ -75,7 +75,6 @@ object QQPusher {
         newScoreMap: HashMap<String, Int>,
         pushToQQ: Boolean,
     ) {
-        if (!Config.EnablePush) return
         val lines = ArrayList<String>()
         val map = HashMap<String, String>()
         lines.add("对局结果")
@@ -114,7 +113,7 @@ object QQPusher {
         @OptIn(DelicateCoroutinesApi::class)
         GlobalScope.launch {
             try {
-                if (pushToQQ)
+                if (Config.EnablePush && pushToQQ)
                     Config.PushQQGroups.forEach { sendGroupMessage(it, text, false, *at) }
                 File("history").mkdirs()
                 map.forEach(::addHistory)
