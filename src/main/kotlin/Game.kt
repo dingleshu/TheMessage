@@ -206,8 +206,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         if (declaredWinners != null && winners != null) {
             if (players.size >= 5) {
                 if (winners.isNotEmpty() && winners.size < players.size) {
-                    val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..1900) }
-                    val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..1900) }
+                    val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..2000) }
+                    val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..2000) }
                     val totalLoser = totalPlayers - totalWinners
                     val delta = totalLoser / (players.size - winners.size) - totalWinners / winners.size
                     for ((i, p) in players.withIndex()) {
