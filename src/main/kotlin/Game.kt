@@ -193,7 +193,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
                 roleSkillsDataList[it],
                 roleSkillsDataList[it + players.size],
                 roleSkillsDataList[it + players.size * 2]
-            ).filter { r -> r.role != unknown }
+            ).filter { r -> r.role != unknown }.toMutableList()
         }))
     }
 
