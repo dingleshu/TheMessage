@@ -19,8 +19,28 @@
 ## 运行
 
 ```shell
+# 调试命令
 ./gradlew run
 ```
+
+> [!NOTE]
+> 执行`run`后卡在88%左右是正常现象，并且显示`> :run`是说明已经正在运行了，已经开启监听对应端口了。（为什么不显示100%？因为100%就是运行结束了！可以自行了解一下gradle。）
+
+> [!IMPORTANT]
+> `./gradlew run`一般用于本地调试，方便使用IDE工具进行断点调试，占用内存较大。
+> 
+> 想要编译并部署请使用：
+> 
+> ```shell
+> # 编译
+> ./gradlew build
+>
+> # 编译后的jar包在build/libs目录下
+> cd build/libs
+>
+> # 部署后自行用java运行
+> java -jar fengsheng-1.0-SNAPSHOT.jar
+> ```
 
 ## 配置
 
