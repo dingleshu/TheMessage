@@ -267,7 +267,7 @@ object Statistics {
     fun getSeasonRankList(): BufferedImage {
         val l1 = playerInfoMap.map { (_, v) ->
             v.copy(score = v.maxScore.coerceAtLeast(0))
-        }.filter { it.score > 0 }.sorted()
+        }.filter { it.score > 0 && it.gameCount > 0 }.sorted()
         return Image.genRankListImage(l1.take(50))
     }
 
