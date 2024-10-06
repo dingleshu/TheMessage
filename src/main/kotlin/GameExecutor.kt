@@ -11,38 +11,38 @@ import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-class StopGameActor
+class StopGameActor(val game: Game)
 
 class GameActor : AbstractActor() {
-    override fun createReceive(): Receive {
-        return receiveBuilder()
-            .match(Runnable::class.java) {
-                try {
-                    it.run()
-                } catch (e: Throwable) {
-                    logger.error("Game Actor异常", e)
-                }
+    override fun createReceive(): Receive = receiveBuilder()
+        .match(Runnable::class.java) {
+            try {
+                it.run()
+            } catch (e: Throwable) {
+                logger.error("Game Actor异常", e)
             }
-            .match(Callable::class.java) {
-                try {
-                    sender.tell(it.call(), self)
-                } catch (e: Throwable) {
-                    logger.error("Game Actor异常", e)
-                }
+        }
+        .match(Callable::class.java) {
+            try {
+                sender.tell(it.call(), self)
+            } catch (e: Throwable) {
+                logger.error("Game Actor异常", e)
             }
-            .match(StopGameActor::class.java) {
-                context.stop(self)
-            }
-            .build()
-    }
+        }
+        .match(StopGameActor::class.java) {
+            logger.info("房间销毁，rid=${it.game.id}")
+            Game.gameCache.remove(it.game.id, it.game)
+            it.game.players.forEach { p -> p?.reset() }
+            it.game.players = emptyList()
+            context.stop(self)
+        }
+        .build()
 
-    override fun supervisorStrategy(): SupervisorStrategy {
-        return OneForOneStrategy(
-            3,
-            Duration.ofSeconds(5),
-            DeciderBuilder.match(Throwable::class.java) { SupervisorStrategy.escalate() }.build()
-        )
-    }
+    override fun supervisorStrategy(): SupervisorStrategy = OneForOneStrategy(
+        3,
+        Duration.ofSeconds(5),
+        DeciderBuilder.match(Throwable::class.java) { SupervisorStrategy.escalate() }.build()
+    )
 }
 
 object GameExecutor {
@@ -79,10 +79,16 @@ object GameExecutor {
             if (!game.players.any { it is HumanPlayer && it.alive })
                 return TimeWheel.newTimeout({ post(game, callback) }, 1, unit)
             if (Config.IsGmEnable) return TimeWheel.newTimeout({ post(game, callback) }, 2, unit)
-            if (game.players.any { it is HumanPlayer && (Statistics.getScore(it.playerName) ?: 0) <= 100 })
-                return TimeWheel.newTimeout({ post(game, callback) }, 5, unit)
+            val maxScore = game.players.maxOf { if (it is HumanPlayer) Statistics.getScore(it.playerName) ?: 9999 else 0 }
+            if (maxScore < 70)
+                return TimeWheel.newTimeout({ post(game, callback) }, (10 - maxScore / 10).toLong(), unit)
         }
-        return TimeWheel.newTimeout({ post(game, callback) }, delay, unit)
+        return TimeWheel.newTimeout({
+            post(game) {
+                game.timeoutSecond = delay.toInt()
+                callback()
+            }
+        }, delay, unit)
     }
 
     fun getGame(id: Int, playerCount: Int): Game {
@@ -112,7 +118,7 @@ object GameExecutor {
         val actorRef = system.actorOf(Props.create(GameActor::class.java), "game-$newId")
         val game = Game(newId, count, actorRef)
         if (Game.gameCache.putIfAbsent(newId, game) != null) {
-            game.actorRef.tell(StopGameActor(), ActorRef.noSender())
+            game.actorRef.tell(StopGameActor(game), ActorRef.noSender())
             throw IllegalStateException("游戏ID冲突")
         }
         return game

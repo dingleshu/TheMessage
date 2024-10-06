@@ -3,6 +3,7 @@
 ![](https://img.shields.io/github/languages/top/CuteReimu/TheMessage "语言")
 ![](https://img.shields.io/badge/java%20version-17-informational "Java 17")
 [![](https://img.shields.io/github/actions/workflow/status/CuteReimu/TheMessage/build.yml?branch=kotlin)](https://github.com/CuteReimu/TheMessage/actions/workflows/build.yml "代码分析")
+[![](https://img.shields.io/github/issues/CuteReimu/TheMessage)](https://github.com/CuteReimu/TheMessage/issues "issues")
 [![](https://img.shields.io/github/contributors/CuteReimu/TheMessage)](https://github.com/CuteReimu/TheMessage/graphs/contributors "贡献者")
 [![](https://img.shields.io/github/license/CuteReimu/TheMessage)](https://github.com/CuteReimu/TheMessage/blob/kotlin/LICENSE "许可协议")
 
@@ -18,8 +19,28 @@
 ## 运行
 
 ```shell
+# 调试命令
 ./gradlew run
 ```
+
+> [!NOTE]
+> 执行`run`后卡在88%左右是正常现象，并且显示`> :run`是说明已经正在运行了，已经开启监听对应端口了。（为什么不显示100%？因为100%就是运行结束了！可以自行了解一下gradle。）
+
+> [!IMPORTANT]
+> `./gradlew run`一般用于本地调试，方便使用IDE工具进行断点调试，占用内存较大。
+> 
+> 想要编译并部署请使用：
+> 
+> ```shell
+> # 编译
+> ./gradlew build
+>
+> # 编译后的jar包在build/libs目录下
+> cd build/libs
+>
+> # 部署后自行用java运行
+> java -jar fengsheng-1.0-SNAPSHOT.jar
+> ```
 
 ## 配置
 
@@ -32,6 +53,8 @@
 file_server_port=9091
 # 服务端监听端口
 listen_websocket_port=9091
+# 播放录像时最大间隔时间（秒）
+rule.record_max_interval=3
 # 游戏开始时摸牌数
 rule.hand_card_count_begin=3
 # 每回合摸牌数
@@ -83,6 +106,7 @@ push.push_qq_groups=12345678
 | /addmessagecard   | player=0&card=1&colors=0&count=1 | 其中player参数对应**服务器中的**玩家Id，card参数对应协议中的卡牌类型，colors参数对应协议中的卡牌颜色，count参数（非必填，默认1）为增加卡牌的个数 |
 | /addrobot         | count=1                          | 其中count参数对应想要增加机器人的个数，不填表示加满                                                           |
 | /getscore         | name=aaa                         | 其中name参数是想要获取分数的玩家名字                                                                   |
+| /getlasttime      | name=aaa                         | 获取最近一次游戏距离现在的时间，其中name参数是想要获取分数的玩家名字                                                   |
 | /ranklist         | 无                                | 获取排行榜                                                                                  |
 | /resetpwd         | name=aaa                         | 其中name参数是想要重置密码的玩家名字（重置为空，玩家可以自行重新设置）                                                  |
 | /forbidrole       | name=aaa                         | 禁用角色，禁用的角色不会再出现在角色池里，其中name参数是想要禁用的中文角色名                                               |
@@ -96,18 +120,25 @@ push.push_qq_groups=12345678
 | /forbidplayer     | name=aaa&hour=72                 | 封号，其中name是用户名，hour是小时                                                                  |
 | /releaseplayer    | name=aaa                         | 解封，其中name是用户名                                                                          |
 | /winrate          | 无                                | 返回一张胜率统计的png图片                                                                         |
-| /updatetitle      | name=aaa&title=bbb               | 更新玩家的称号，其中name是用户名，title是称号，title为空就是删除称号                                              |
 | /resetseason      | 无                                | 重置赛季，重置前请手动备份PlayerInfo.csv                                                            |
+| /addenergy        | name=aaa&energy=1                | 增加精力                                                                                   |
+| /getallgames      | 无                                | 获取所有房间的状态                                                                              |
 
 ## 把战绩推送到QQ群
 
 将配置文件`application.properties`中的`push.enable_push`设置为`true`，就可以开启将战绩推送到QQ群的功能。
 
-想要把战绩推送到QQ群，你应该知道如何使用[mirai](https://github.com/mamoe/mirai)进行登录，并安装[mirai-api-http](https://github.com/project-mirai/mirai-api-http)插件。
+在使用推送功能之前，你应该首先自行搭建一个支持 [onebot-11](https://github.com/botuniverse/onebot-11) 接口的QQ机器人。例如：
 
-请多参阅mirai-api-http的[文档](https://docs.mirai.mamoe.net/mirai-api-http/api/API.html)。
+- [NapCat](https://github.com/NapNeko/NapCatQQ) 基于NTQQ的无头Bot框架
+- [OpenShamrock](https://github.com/whitechi73/OpenShamrock) 基于 Lsposed(Non-Riru) 实现 Kritor 标准的 QQ 机器人框架
+- [Lagrange](https://github.com/LagrangeDev/Lagrange.Core) 一个基于纯C#的NTQQ协议实现，源自Konata.Core
+- [LiteLoaderQQNT](https://github.com/LiteLoaderQQNT/LiteLoaderQQNT) QQNT 插件加载器
+- [Gensokyo](https://github.com/Hoshinonyaruko/Gensokyo) 基于qq官方api开发的符合onebot标准的golang实现，轻量、原生跨平台
+- [LLOneBot](https://github.com/LLOneBot/LLOneBot) LiteLoaderQQNT插件，使你的NTQQ支持OneBot11协议进行QQ机器人开发
 
-本项目使用http接口，因此你需要修改mirai的配置文件`config/net.mamoe.mirai-api-http/setting.yml`，开启http监听。
+> [!IMPORTANT]
+> 本功能是基于onebot的正向http接口，因此你需要开启对应机器人项目的http监听。
 
 *纯人机局不会推送，至少要有2名真人玩家时才会推送。*
 
@@ -118,6 +149,15 @@ push.push_qq_groups=12345678
 启动后，访问`http://ip:port/`即可看到`files`文件夹（事先自行创建一个`files`文件夹）下的文件列表，点击文件名即可下载。（目前暂不支持嵌套文件夹）
 
 ## 开发相关
+
+### gradle镜像
+
+如果gradle下载太慢，可以修改`gradle/wrapper/gradle-wrapper.properties`中的`distributionUrl`：
+
+```diff
+- distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
++ distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.7-bin.zip
+```
 
 ### IDEA问题
 

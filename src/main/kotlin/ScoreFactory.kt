@@ -17,19 +17,27 @@ import kotlin.math.ceil
 import kotlin.math.round
 
 object ScoreFactory : Logging {
-    private val rankString = listOf("I", "II", "III", "IV", "V")
+    private val rankString = listOf("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X")
 
-    fun getRankNameByScore(score: Int): String {
-        return when {
-            score < 60 -> "\uD83E\uDD49" + rankString[2 - score / 20]
-            score < 240 -> "\uD83E\uDD48" + rankString[2 - (score - 60) / 60]
-            score < 360 -> "\uD83E\uDD47" + rankString[4 - (score - 240) / 60]
-            score < 600 -> "\uD83E\uDD47" + rankString[2 - (score - 360) / 80]
-            score < 1000 -> "\uD83D\uDC8D" + rankString[4 - (score - 600) / 80]
-            score < 1500 -> "\uD83D\uDCA0" + rankString[4 - (score - 1000) / 100]
-            score < 2000 -> "\uD83D\uDC51" + rankString[4 - (score - 1500) / 100]
-            else -> "\uD83D\uDC51" + rankString[0]
-        }
+    fun getRankNameByScore(score: Int): String = when {
+        score < 60 -> "\uD83E\uDD49" + rankString[2 - score / 20]
+        score < 240 -> "\uD83E\uDD48" + rankString[2 - (score - 60) / 60]
+        score < 360 -> "\uD83E\uDD47" + rankString[4 - (score - 240) / 60]
+        score < 600 -> "\uD83E\uDD47" + rankString[2 - (score - 360) / 80]
+        score < 1000 -> "\uD83D\uDC8D" + rankString[4 - (score - 600) / 80]
+        score < 1500 -> "\uD83D\uDCA0" + rankString[4 - (score - 1000) / 100]
+        score < 2000 -> "\uD83D\uDC51" + rankString[4 - (score - 1500) / 100]
+        score < 2900 -> "\u2B50" + rankString[9 - (score - 2000) / 100]
+        else -> "\u2B50" + rankString[0]
+    }
+
+    fun getSeasonTitleByScore(score: Int): String = when {
+        score >= 2900 -> "\u2B50"
+        score >= 1900 -> "\uD83D\uDC51"
+        score >= 1400 -> "\uD83D\uDCA0"
+        score >= 920 -> "\uD83D\uDC8D"
+        score >= 520 -> "\uD83E\uDD47"
+        else -> ""
     }
 
     fun getRankStringNameByScore(score: Int): String {
@@ -41,7 +49,8 @@ object ScoreFactory : Logging {
             score < 1000 -> "铂金" + rankString[4 - (score - 600) / 80]
             score < 1500 -> "钻石" + rankString[4 - (score - 1000) / 100]
             score < 2000 -> "大师" + rankString[4 - (score - 1500) / 100]
-            else -> "大师" + rankString[0]
+            score < 2800 -> "至尊" + rankString[9 - (score - 2000) / 100]
+            else -> "至尊" + rankString[0]
         }
     }
 
@@ -69,7 +78,7 @@ object ScoreFactory : Logging {
             var negativeMultiple = 1.0
             operator fun timesAssign(multiple: Double) {
                 if (multiple >= 1.0) positiveMultiple += multiple - 1.0 // 加分加算
-                else negativeMultiple *= multiple.coerceAtLeast(0.01) // 减分乘算
+                else negativeMultiple *= multiple.coerceAtLeast(0.1) // 减分乘算
             }
 
             operator fun divAssign(v: Int) {
@@ -92,7 +101,7 @@ object ScoreFactory : Logging {
                 playerCountCount.computeIfPresent(players.size.coerceAtMost(8)) { _, list ->
                     val rate =
                         if (originSecretTask == Mutator && list[Mutator.number + 3].rate < list[Collector.number + 3].rate)
-                            list[Collector.number + 3].rate // 如果诱变者胜率低于双重间谍，则取双重间谍的胜率
+                            list[Collector.number + 3].rate // 如果诱变者胜率低于双面间谍，则取双重间谍的胜率
                         else if (originSecretTask == Sweeper && list[Sweeper.number + 3].rate > list[Mutator.number + 3].rate)
                             list[Mutator.number + 3].rate // 如果清道夫胜率高于诱变者，则取诱变者的胜率
                         else if (originIdentity == Black && originSecretTask != Mutator)
@@ -111,7 +120,7 @@ object ScoreFactory : Logging {
                 playerCountCount.computeIfPresent(players.size.coerceAtMost(8)) { _, list ->
                     val rate =
                         if (originSecretTask == Mutator && list[Mutator.number + 3].rate < list[Collector.number + 3].rate)
-                            list[Collector.number + 3].rate // 如果诱变者胜率低于双重间谍，则取双重间谍的胜率
+                            list[Collector.number + 3].rate // 如果诱变者胜率低于双面间谍，则取双重间谍的胜率
                         else if (originSecretTask == Sweeper && list[Sweeper.number + 3].rate > list[Mutator.number + 3].rate)
                             list[Mutator.number + 3].rate // 如果清道夫胜率高于诱变者，则取诱变者的胜率
                         else if (originIdentity == Black && originSecretTask != Mutator)
@@ -202,4 +211,45 @@ object ScoreFactory : Logging {
     }
 
     private val playerCountCount = ConcurrentHashMap<Int, MutableList<PlayerGameCount>>()
+
+    /**
+     * 获取所有角色的胜率
+     */
+    fun getAllWinRate(): Double {
+        var winCount = 0
+        var gameCount = 0
+        playerCountCount.forEach { (_, list) ->
+            winCount += list[0].winCount
+            gameCount += list[0].gameCount
+        }
+        return PlayerGameCount(winCount, gameCount).rate
+    }
+
+    /**
+     * 获取军潜的胜率
+     */
+    fun getRBWinRate(): Double {
+        var winCount = 0
+        var gameCount = 0
+        playerCountCount.forEach { (_, list) ->
+            winCount += list[1].winCount
+            gameCount += list[1].gameCount
+        }
+        return PlayerGameCount(winCount, gameCount).rate
+    }
+
+    /**
+     * 获取神秘人的胜率
+     *
+     * @param secretTask 神秘人的任务，传空表示获取所有神秘人的胜率
+     */
+    fun getBlackWinRate(secretTask: secret_task? = null): Double {
+        var winCount = 0
+        var gameCount = 0
+        playerCountCount.forEach { (_, list) ->
+            winCount += list[3 + (secretTask?.number ?: -1)].winCount
+            gameCount += list[3 + (secretTask?.number ?: -1)].gameCount
+        }
+        return PlayerGameCount(winCount, gameCount).rate
+    }
 }

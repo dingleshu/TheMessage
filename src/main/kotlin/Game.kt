@@ -25,7 +25,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
-import kotlin.random.nextInt
 
 class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var resolvingEvents = emptyList<Event>()
@@ -45,9 +44,26 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var deck = Deck(this)
     var fsm: Fsm? = null
     var possibleSecretTasks: List<secret_task> = emptyList()
+    var realTurn = 0
     var turn = 0
+    var playTime: Long = 0
     val isEarly: Boolean
-        get() = turn <= players.size - players.size / 2
+        get() = turn <= players.size
+
+    val waitSecond: Int
+        get() {
+            val cnt = players.count { it is HumanPlayer }
+            return when (cnt) {
+                1 -> Config.WaitSeconds * 2
+                2 -> Config.WaitSeconds
+                else -> (Config.WaitSeconds * (1 - 0.05 * cnt)).toInt()
+            }
+        }
+
+    var timeoutSecond = 0
+
+    /** 动画延迟时间（用于调包） **/
+    var animationDelayMs = 0L
 
     /**
      * 用于出牌阶段结束时提醒还未发动的技能
@@ -86,6 +102,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             gameCount = count.gameCount
             score = Statistics.getScore(name) ?: 0
             rank = if (player is HumanPlayer) ScoreFactory.getRankNameByScore(score) else ""
+            title = player.playerTitle
         }
         players.forEach { if (it !== player && it is HumanPlayer) it.send(msg) }
         if (unready == 0) {
@@ -101,7 +118,9 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         players.all { it != null } || return
         !isStarted || return
         isStarted = true
-        MiraiPusher.notifyStart()
+        players = players.shuffled()
+        players.forEachIndexed { i, p -> p!!.location = i }
+        QQPusher.notifyStart()
         val identities = ArrayList<color>()
         when (players.size) {
             2 -> Random.nextInt(4).let {
@@ -138,6 +157,14 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             }
         }
         identities.shuffle()
+        if (!Config.IsGmEnable && players.count { it is HumanPlayer } == 1) {
+            val i = players.indexOfFirst { it is HumanPlayer }
+            if (Statistics.getScore(players[i]!!.playerName) == 0 && identities[i] == Black) { // 对于0分的新人，确保一定是阵营方
+                val j = identities.indexOfFirst { it != Black }
+                identities[i] = identities[j]
+                identities[j] = Black
+            }
+        }
         val tasks = arrayListOf(Killer, Stealer, Collector, Pioneer)
         if (players.size >= 5) tasks.addAll(listOf(Mutator, Disturber, Sweeper))
         tasks.shuffle()
@@ -166,25 +193,26 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
                 roleSkillsDataList[it],
                 roleSkillsDataList[it + players.size],
                 roleSkillsDataList[it + players.size * 2]
-            ).filter { r -> r.role != unknown }
+            ).filter { r -> r.role != unknown }.toMutableList()
         }))
     }
 
     fun end(declaredWinners: List<Player>?, winners: List<Player>?, forceEnd: Boolean = false) {
         isEnd = true
-        gameCache.remove(id)
+        gameIdleTimeout?.cancel()
         val humanPlayers = players.filterIsInstance<HumanPlayer>()
         val addScoreMap = HashMap<String, Int>()
         val newScoreMap = HashMap<String, Int>()
         if (declaredWinners != null && winners != null) {
             if (players.size >= 5) {
                 if (winners.isNotEmpty() && winners.size < players.size) {
-                    val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..1900) }
-                    val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..1900) }
+                    val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..2000) }
+                    val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..2000) }
                     val totalLoser = totalPlayers - totalWinners
                     val delta = totalLoser / (players.size - winners.size) - totalWinners / winners.size
                     for ((i, p) in players.withIndex()) {
-                        val score = p!!.calScore(players.filterNotNull(), winners, delta / 10)
+                        var score = p!!.calScore(players.filterNotNull(), winners, delta / 10)
+                        if (score > 0 && humanPlayers.size > 1) score += 2 * humanPlayers.size
                         val (newScore, deltaScore) = Statistics.updateScore(p, score, i == humanPlayers.size - 1)
                         logger.info("$p(${p.originIdentity},${p.originSecretTask})得${score}分，新分数为：$newScore")
                         addScoreMap[p.playerName] = deltaScore
@@ -208,20 +236,22 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
                     Statistics.add(records)
                 }
                 for (p in humanPlayers) {
-                    playerGameResultList.add(PlayerGameResult(p.playerName, winners.any { it === p }))
+                    if (humanPlayers.size <= 1) Statistics.addEnergy(p.playerName, -1)
+                    else Statistics.addEnergy(p.playerName, humanPlayers.size * 2)
+                    playerGameResultList.add(PlayerGameResult(p.playerName, winners.any { it === p },
+                        p.originIdentity, p.originSecretTask))
                 }
                 Statistics.addPlayerGameCount(playerGameResultList)
                 Statistics.calculateRankList()
-                if (humanPlayers.size > 1)
-                    MiraiPusher.push(this, declaredWinners, winners, addScoreMap, newScoreMap)
+                QQPusher.push(this, declaredWinners, winners, addScoreMap, newScoreMap, humanPlayers.size > 1 ||
+                    humanPlayers[0].playerName == "半藏")
             }
             players.forEach { it!!.notifyWin(declaredWinners, winners, addScoreMap, newScoreMap) }
         }
         humanPlayers.forEach { it.saveRecord() }
         humanPlayers.forEach { playerNameCache.remove(it.playerName) }
-        players.forEach { it!!.reset() }
         if (forceEnd) humanPlayers.forEach { it.send(notifyKickedToc {}) }
-        actorRef.tell(StopGameActor(), ActorRef.noSender())
+        actorRef.tell(StopGameActor(this), ActorRef.noSender())
     }
 
     /**
@@ -297,8 +327,12 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     fun continueResolve() {
         gameIdleTimeout?.cancel()
         gameIdleTimeout = GameExecutor.post(this, {
-            if (!isEnd) fsm?.let { resolve(NextTurn(it.whoseTurn)) }
-        }, (Config.WaitSecond * 3).toLong(), TimeUnit.SECONDS)
+            if (!isEnd) fsm?.let {
+                logger.info("等待过久，当前时点为：$it")
+                players.send { errorMessageToc { msg = "疑似出现bug卡死，已自动跳转到下一回合" } }
+                resolve(NextTurn(it.whoseTurn))
+            }
+        }, (waitSecond * 3).toLong(), TimeUnit.SECONDS)
         while (true) {
             val result = fsm!!.resolve() ?: break
             fsm = result.next
@@ -343,7 +377,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
      * 遍历监听列表，结算技能
      */
     fun dealListeningSkill(beginLocation: Int): ResolveResult? {
-        repeat(100) { // 写个100，防止死循环
+        repeat(100) {
+            // 写个100，防止死循环
             if (resolvingEvents.isEmpty()) {
                 if (unresolvedEvents.isEmpty()) return null
                 resolvingEvents = unresolvedEvents
@@ -410,9 +445,6 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         val playerNameCache = ConcurrentHashMap<String, HumanPlayer>()
         val increaseId = AtomicInteger(0)
 
-        @Volatile
-        var lastTotalPlayerCount = Config.TotalPlayerCount
-
         fun exchangePlayer(oldPlayer: HumanPlayer, newPlayer: HumanPlayer) {
             oldPlayer.channel = newPlayer.channel
             oldPlayer.needWaitLoad = newPlayer.needWaitLoad
@@ -422,10 +454,22 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         }
 
         val onlineCount: Int
-            get() = gameCache.values.sumOf { it.players.count { p -> p != null } } +
-                Random(System.currentTimeMillis() / 300000).run {
-                    (0..nextInt(1..4)).sumOf { nextInt(5..9) }
+            get() = gameCache.values.sumOf { it.players.count { p -> p is HumanPlayer } }
+
+        val humanPlayerCount: Pair<Int, Int>
+            get() {
+                var roomCount = 0
+                var humanCount = 0
+                gameCache.values.forEach {
+                    val c = it.players.count { p -> p is HumanPlayer }
+                    humanCount += c
+                    if (c > 0) roomCount++
                 }
+                return roomCount to humanCount
+            }
+
+        val inGameCount: Int
+            get() = gameCache.values.count { it.isStarted }
 
         @Throws(IOException::class, ClassNotFoundException::class)
         @JvmStatic

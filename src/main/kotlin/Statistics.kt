@@ -1,7 +1,10 @@
 package com.fengsheng
 
 import com.fengsheng.ScoreFactory.addScore
+import com.fengsheng.ScoreFactory.getSeasonTitleByScore
 import com.fengsheng.protos.Common.*
+import com.fengsheng.protos.Common.color.*
+import com.fengsheng.protos.Common.secret_task.*
 import com.fengsheng.protos.getRecordListToc
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -74,16 +77,78 @@ object Statistics {
             val now = System.currentTimeMillis()
             var win = 0
             var game = 0
+            var rbwin = 0
+            var rbgame = 0
+            var blackwin = 0
+            var blackgame = 0
+            var killerwin = 0
+            var killergame = 0
+            var stealerwin = 0
+            var stealergame = 0
+            var collectorwin = 0
+            var collectorgame = 0
+            var mutatorwin = 0
+            var mutatorgame = 0
+            var pioneerwin = 0
+            var pioneergame = 0
+            var disturberwin = 0
+            var disturbergame = 0
+            var sweeperwin = 0
+            var sweepergame = 0
             var updateTrial = false
             for (count in playerGameResultList) {
                 if (count.isWin) {
+                    if (count.identity == Black) {
+                        blackwin++
+                        when (count.secret_task) {
+                            Killer -> killerwin++
+                            Stealer -> stealerwin++
+                            Collector -> collectorwin++
+                            Mutator -> mutatorwin++
+                            Pioneer -> pioneerwin++
+                            Disturber -> disturberwin++
+                            Sweeper -> sweeperwin++
+                            else -> {}
+                        }
+                    } else rbwin++
                     win++
                     if (trialStartTime.remove(count.playerName) != null) updateTrial = true
                 }
+                if (count.identity == Black) {
+                    blackgame++
+                    when (count.secret_task) {
+                        Killer -> killergame++
+                        Stealer -> stealergame++
+                        Collector -> collectorgame++
+                        Mutator -> mutatorgame++
+                        Pioneer -> pioneergame++
+                        Disturber -> disturbergame++
+                        Sweeper -> sweepergame++
+                        else -> {}
+                    }
+                } else rbgame++
                 game++
                 playerInfoMap.computeIfPresent(count.playerName) { _, v ->
                     val addWin = if (count.isWin) 1 else 0
-                    v.copy(winCount = v.winCount + addWin, gameCount = v.gameCount + 1, lastTime = now)
+                    val addRbWin = if (count.isWin && count.identity != Black) 1 else 0
+                    val addBlackWin = if (count.isWin && count.identity == Black) 1 else 0
+                    val newBlacksWin = if (count.isWin && count.identity == Black)
+                        v.blacksWinCount + (count.secret_task to ((v.blacksWinCount[count.secret_task] ?: 0) + 1))
+                    else v.blacksWinCount
+                    val addRbGame = if (count.identity != Black) 1 else 0
+                    val addBlackGame = if (count.identity == Black) 1 else 0
+                    val newBlacksGame = if (count.identity == Black)
+                        v.blacksGameCount + (count.secret_task to ((v.blacksWinCount[count.secret_task] ?: 0) + 1))
+                    else v.blacksGameCount
+                    v.copy(winCount = v.winCount + addWin,
+                        gameCount = v.gameCount + 1, lastTime = now,
+                        rbWinCount = v.rbWinCount + addRbWin,
+                        blackWinCount = v.blackWinCount + addBlackWin,
+                        blacksWinCount = newBlacksWin,
+                        rbGameCount = v.rbGameCount + addRbGame,
+                        blackGameCount = v.blackGameCount + addBlackGame,
+                        blacksGameCount = newBlacksGame,
+                    )
                 }
             }
             totalWinCount.addAndGet(win)
@@ -98,7 +163,9 @@ object Statistics {
     }
 
     fun register(name: String): Boolean {
-        val result = playerInfoMap.putIfAbsent(name, PlayerInfo(name, 0, "", 0, 0, 0, "", 0)) == null
+        val now = System.currentTimeMillis()
+        val result = playerInfoMap.putIfAbsent(name, PlayerInfo(name, 0, "", 0, 0, 0, "", now, 10, 0, 0, 0, 0, 0,
+            emptyMap(), emptyMap())) == null
         if (result) pool.trySend(::savePlayerInfo)
         return result
     }
@@ -149,6 +216,19 @@ object Statistics {
     fun getScore(name: String) = playerInfoMap[name]?.score
     fun getScore(player: Player) =
         if (player is HumanPlayer) getScore(player.playerName) else robotInfoMap[player.playerName]?.score
+    fun getScore2(player: Player) =
+        if (player is HumanPlayer) playerInfoMap[player.playerName]?.scoreWithDecay else robotInfoMap[player.playerName]?.score
+    fun getEnergy(name: String) = playerInfoMap[name]?.energy ?: 0
+    fun addEnergy(name: String, energy: Int, save: Boolean = false): Boolean {
+        val ok = playerInfoMap.computeIfPresent(name) { _, v ->
+            v.copy(energy = (v.energy + energy).coerceAtLeast(0))
+        } != null
+        if (ok && save) {
+            pool.trySend(::savePlayerInfo)
+            calculateRankList()
+        }
+        return ok
+    }
 
     fun updateTitle(name: String, title: String): Boolean {
         var succeed = false
@@ -171,7 +251,7 @@ object Statistics {
             playerInfoMap.computeIfPresent(player.playerName) { _, v ->
                 newScore = v.score addScore score
                 delta = newScore - v.score
-                v.copy(score = newScore)
+                v.copy(score = newScore, maxScore = maxOf(v.maxScore, newScore))
             }
         } else {
             robotInfoMap.compute(player.playerName) { _, v ->
@@ -184,20 +264,21 @@ object Statistics {
         return newScore to delta
     }
 
+    fun getSeasonRankList(): BufferedImage {
+        val l1 = playerInfoMap.map { (_, v) ->
+            v.copy(score = v.maxScore.coerceAtLeast(0))
+        }.filter { it.score > 0 && it.gameCount > 0 }.sorted()
+        return Image.genRankListImage(l1.take(50))
+    }
+
     fun calculateRankList() {
-        val l1 = playerInfoMap.filter { (_, v) -> v.winCount > 0 }.map { (_, v) ->
-            val days = ((System.currentTimeMillis() - v.lastTime) / (24 * 3600000L)).toInt()
+        val now = System.currentTimeMillis()
+        val l1 = playerInfoMap.map { (_, v) ->
+            if (v.score <= 0) return@map v
+            val days = ((now - v.lastTime) / (24 * 3600000L)).toInt()
             val decay = days / 7 * 20
             v.copy(score = (v.score - decay).coerceAtLeast(0))
-        }.sortedWith { a, b ->
-            if (a.score > b.score) -1
-            else if (a.score < b.score) 1
-            else if (a.lastTime > b.lastTime) -1
-            else if (a.lastTime < b.lastTime) 1
-            else if (a.gameCount > b.gameCount) -1
-            else if (a.gameCount < b.gameCount) 1
-            else b.winCount.compareTo(a.winCount)
-        }
+        }.filter { it.score > 0 }.sorted()
 
         fun makeRankList(count: Int): String {
             val l = l1.take(count)
@@ -231,7 +312,29 @@ object Statistics {
      */
     fun resetSeason() {
         playerInfoMap.keys.forEach {
-            playerInfoMap.computeIfPresent(it) { _, v -> v.copy(winCount = 0, gameCount = 0, score = v.score / 2) }
+            playerInfoMap.computeIfPresent(it) { _, v ->
+                if (v.score <= 1) return@computeIfPresent null
+                val newTitle = v.title + getSeasonTitleByScore(v.maxScore)
+                v.copy(
+                    winCount = 0,
+                    gameCount = 0,
+                    title = sortTitles(newTitle),
+                    score = v.score / 2,
+                    energy = v.energy.coerceAtLeast(10),
+                    maxScore = v.score / 2,
+                    rbWinCount = 0,
+                    rbGameCount = 0,
+                    blackWinCount = 0,
+                    blackGameCount = 0,
+                    blacksWinCount = emptyMap(),
+                    blacksGameCount = emptyMap(),
+                )
+            }
+        }
+        robotInfoMap.keys.forEach {
+            robotInfoMap.computeIfPresent(it) { _, v ->
+                v.copy(score = v.score / 2)
+            }
         }
         pool.trySend(::savePlayerInfo)
         calculateRankList()
@@ -239,6 +342,32 @@ object Statistics {
 
     val totalPlayerGameCount: PlayerGameCount
         get() = PlayerGameCount(totalWinCount.get(), totalGameCount.get())
+
+    fun getTitleRank(title: String): Int = when (title) {
+        "\u2B50" -> 1 // score >= 2900
+        "\uD83D\uDC51" -> 2 // score >= 1900
+        "\uD83D\uDCA0" -> 3 // score >= 1400
+        "\uD83D\uDC8D" -> 4 // score >= 920
+        "\uD83E\uDD47" -> 5 // score >= 520
+        else -> 6 // Lower than 520
+    }
+
+    fun sortTitles(titles: String): String {
+        val titleList = mutableListOf<String>()
+        var i = 0
+        while (i < titles.length) {
+            if (titles[i] == '\u2B50') {
+                // 如果是单字符 emoji（⭐）
+                titleList.add(titles[i].toString())
+                i += 1
+            } else {
+                // 处理其他双字符 emoji
+                titleList.add(titles.substring(i, i + 2))
+                i += 2
+            }
+        }
+        return titleList.sortedBy { getTitleRank(it) }.joinToString("")
+    }
 
     private fun savePlayerInfo() {
         val sb = StringBuilder()
@@ -250,7 +379,18 @@ object Statistics {
             sb.append(info.password).append(',')
             sb.append(info.forbidUntil).append(',')
             sb.append(info.title).append(',')
-            sb.append(info.lastTime).append('\n')
+            sb.append(info.lastTime).append(',')
+            sb.append(info.energy).append(',')
+            sb.append(info.maxScore).append(',')
+            sb.append(info.rbWinCount).append(',')
+            sb.append(info.rbGameCount).append(',')
+            sb.append(info.blackWinCount).append(',')
+            sb.append(info.blackGameCount)
+            listOf(Killer, Stealer, Collector, Mutator, Pioneer, Disturber, Sweeper).forEach {
+                sb.append(',').append(info.blacksWinCount[it] ?: 0)
+                sb.append(',').append(info.blacksGameCount[it] ?: 0)
+            }
+            sb.append('\n')
         }
         writeFile("playerInfo.csv", sb.toString().toByteArray())
         sb.clear()
@@ -279,7 +419,7 @@ object Statistics {
                 var line: String
                 while (true) {
                     line = reader.readLine() ?: break
-                    val a = line.split(",".toRegex(), limit = 8)
+                    val a = line.split(",".toRegex(), limit = 28)
                     val pwd = a[4]
                     val score = if (a[3].length < 6) a[3].toInt() else 0 // 以前这个位置是deviceId
                     val name = a[2]
@@ -287,8 +427,23 @@ object Statistics {
                     val game = a[1].toInt()
                     val forbid = a.getOrNull(5)?.toLong() ?: 0
                     val title = a.getOrNull(6) ?: ""
-                    val lt = a.getOrNull(7)?.toLong() ?: 0
-                    if (playerInfoMap.put(name, PlayerInfo(name, score, pwd, win, game, forbid, title, lt)) != null)
+                    val lt = (a.getOrNull(7)?.toLong() ?: 0).let { if (it == 0L) System.currentTimeMillis() else it }
+                    val energy = a.getOrNull(8)?.toInt() ?: 0
+                    val maxScore = a.getOrNull(9)?.toInt() ?: score
+                    val rbWinCount = a.getOrNull(10)?.toInt() ?: 0
+                    val rbGameCount = a.getOrNull(11)?.toInt() ?: 0
+                    val blackWinCount = a.getOrNull(12)?.toInt() ?: 0
+                    val blackGameCount = a.getOrNull(13)?.toInt() ?: 0
+                    val blacksWinCount = HashMap<secret_task, Int>()
+                    val blacksGameCount = HashMap<secret_task, Int>()
+                    listOf(Killer, Stealer, Collector, Mutator, Pioneer, Disturber, Sweeper).forEach {
+                        blacksWinCount[it] = a.getOrNull(it.number * 2 + 14)?.toInt() ?: 0
+                        blacksGameCount[it] = a.getOrNull(it.number * 2 + 15)?.toInt() ?: 0
+                    }
+                    val p = PlayerInfo(name, score, pwd, win, game, forbid, title, lt, energy, maxScore,
+                        rbWinCount, rbGameCount, blackWinCount, blackGameCount,
+                        blacksWinCount, blacksGameCount)
+                    if (playerInfoMap.put(name, p) != null)
                         throw RuntimeException("数据错误，有重复的玩家name")
                     winCount += win
                     gameCount += game
@@ -372,7 +527,7 @@ object Statistics {
         val totalPlayerCount: Int
     )
 
-    class PlayerGameResult(val playerName: String, val isWin: Boolean)
+    class PlayerGameResult(val playerName: String, val isWin: Boolean, val identity: color, val secret_task: secret_task)
 
     data class PlayerGameCount(val winCount: Int, val gameCount: Int) {
         fun random(): PlayerGameCount {
@@ -394,7 +549,32 @@ object Statistics {
         val forbidUntil: Long,
         val title: String,
         val lastTime: Long,
-    )
+        val energy: Int,
+        val maxScore: Int,
+        val rbWinCount: Int,
+        val rbGameCount: Int,
+        val blackWinCount: Int,
+        val blackGameCount: Int,
+        val blacksWinCount: Map<secret_task, Int>,
+        val blacksGameCount: Map<secret_task, Int>,
+    ) : Comparable<PlayerInfo> {
+        val scoreWithDecay: Int
+            get() {
+                val days = ((System.currentTimeMillis() - lastTime) / (24 * 3600000L)).toInt()
+                val decay = days / 7 * 20
+                return (score - decay).coerceAtLeast(0)
+            }
+
+        override fun compareTo(other: PlayerInfo) = when {
+            score > other.score -> -1
+            score < other.score -> 1
+            lastTime > other.lastTime -> -1
+            lastTime < other.lastTime -> 1
+            gameCount > other.gameCount -> -1
+            gameCount < other.gameCount -> 1
+            else -> other.winCount.compareTo(winCount)
+        }
+    }
 
     data class RobotInfo(
         val name: String,

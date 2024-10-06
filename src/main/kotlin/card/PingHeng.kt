@@ -4,7 +4,7 @@ import com.fengsheng.*
 import com.fengsheng.phase.MainPhaseIdle
 import com.fengsheng.phase.OnFinishResolveCard
 import com.fengsheng.phase.ResolveCard
-import com.fengsheng.protos.Common.card_type.Ping_Heng
+import com.fengsheng.protos.Common.card_type.*
 import com.fengsheng.protos.Common.color
 import com.fengsheng.protos.Common.direction
 import com.fengsheng.protos.usePingHengToc
@@ -12,6 +12,7 @@ import com.fengsheng.skill.ConvertCardSkill
 import com.fengsheng.skill.cannotPlayCard
 import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 
 class PingHeng : Card {
     constructor(id: Int, colors: List<color>, direction: direction, lockable: Boolean) :
@@ -83,16 +84,26 @@ class PingHeng : Card {
         fun ai(e: MainPhaseIdle, card: Card, convertCardSkill: ConvertCardSkill?): Boolean {
             val player = e.whoseTurn
             !player.cannotPlayCard(Ping_Heng) || return false
-            player.cards.size <= 3 || return false
+            // 打出平衡的时机：1）手牌小于等于3张，2）手牌大于3张但没有截获、误导、调包
+            player.cards.size <= 3 || !player.cards.any {
+                it.type in listOf(Jie_Huo, Wu_Dao, Diao_Bao)
+            } || return false
             val identity = player.identity
             val p = player.game!!.players.filter {
                 if (it === player || !it!!.alive) false
                 else if (identity != color.Black && identity == it.identity) it.cards.size <= 3
                 else it.cards.size >= 3
-            }.randomOrNull() ?: return false
+            }.ifEmpty {
+                // 当敌人全部手牌小于3张时，优先选择手牌比自己多的敌人
+                player.game!!.players.filter {
+                    it!!.alive && it.isEnemy(player) && it.cards.size >= player.cards.size
+                }
+            }
+            p.size >= 1 || return false
+            val target = p.maxBy { abs(it!!.cards.size - 3.1) }
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
-                card.asCard(Ping_Heng).execute(player.game!!, player, p)
+                card.asCard(Ping_Heng).execute(player.game!!, player, target!!)
             }, 3, TimeUnit.SECONDS)
             return true
         }

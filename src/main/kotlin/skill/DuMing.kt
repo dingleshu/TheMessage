@@ -52,7 +52,7 @@ class DuMing : TriggeredSkill {
             g.players.send { p ->
                 skillWaitForDuMingToc {
                     playerId = p.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = g.waitSecond
                     if (p === r) {
                         val seq = p.seq
                         this.seq = seq
@@ -69,7 +69,7 @@ class DuMing : TriggeredSkill {
                         val fightPhase = event.nextFsm as? FightPhaseIdle
                         if (fightPhase == null) {
                             logger.error("状态错误：${event.nextFsm}")
-                            null to null
+                            throw IllegalStateException()
                         } else {
                             fightPhase.messageCard to event.player
                         }
@@ -78,17 +78,17 @@ class DuMing : TriggeredSkill {
                     is MessageMoveNextEvent -> event.messageCard to event.whoseTurn
                     else -> {
                         logger.error("状态错误：$event")
-                        null to null
+                        throw IllegalStateException()
                     }
                 }
                 GameExecutor.post(g, {
                     g.tryContinueResolveProtocol(r, skillDuMingATos {
                         enable = true
-                        if (messageCard == null || causer == null ||
-                            if (r.identity == Black) r !== causer && Random.nextBoolean()
+                        if (if (r.identity == Black) r !== causer && Random.nextBoolean()
                             else causer.identity != r.identity
                         ) {
-                            color = listOf(Red, Blue, Black).random()
+                            // 适当提高猜对几率
+                            color = (listOf(Red, Blue, Black) + messageCard.colors).random()
                         } else {
                             var wrong = false
                             if (r.identity == Black) {
@@ -190,7 +190,7 @@ class DuMing : TriggeredSkill {
                     color = c
                     if (p === r) card = this@ExecuteDuMing.card.toPbCard()
                     if (needPutBlack) {
-                        waitingSecond = Config.WaitSecond
+                        waitingSecond = g.waitSecond
                         if (p === r) {
                             val seq = p.seq
                             this.seq = seq

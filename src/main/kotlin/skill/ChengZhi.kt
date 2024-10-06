@@ -58,7 +58,7 @@ class ChengZhi : TriggeredSkill {
             r.game!!.players.send { player ->
                 skillWaitForChengZhiToc {
                     playerId = player.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = r.game!!.waitSecond
                     diePlayerId = player.getAlternativeLocation(whoDie.location)
                     if (player === r) {
                         cards.forEach { this.cards.add(it.toPbCard()) }
@@ -92,7 +92,8 @@ class ChengZhi : TriggeredSkill {
                     else -> -100
                 }
                 r.game!!.tryContinueResolveProtocol(r, skillChengZhiTos {
-                    enable = r.process(whoDie.identity, whoDie.secretTask) > r.process(r.identity, r.secretTask)
+                    enable = whoDie.identity == r.identity && whoDie.secretTask == r.secretTask ||
+                        r.process(whoDie.identity, whoDie.secretTask) > r.process(r.identity, r.secretTask)
                 })
             }, 3, TimeUnit.SECONDS)
             return null

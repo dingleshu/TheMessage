@@ -68,10 +68,11 @@ class MiLing : Card {
         val target = args[0] as Player
         val secret = args[1] as Int
         val color = this.secret[secret]
+        target.useCardThisTurn = true
         logger.info("${r}对${target}使用了$this，并宣言了$color")
         r.deleteCard(id)
         val hasColor = target.cards.any { color in it.colors }
-        val timeout = Config.WaitSecond
+        val timeout = g.waitSecond
         val resolveFunc = { _: Boolean ->
             r.game!!.players.send { p ->
                 useMiLingToc {
@@ -153,7 +154,7 @@ class MiLing : Card {
                 return null
             }
             player.incrSeq()
-            val timeout = Config.WaitSecond
+            val timeout = player.game!!.waitSecond
             player.game!!.players.send { p ->
                 miLingChooseCardToc {
                     playerId = p.getAlternativeLocation(player.location)

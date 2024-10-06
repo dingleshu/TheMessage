@@ -72,7 +72,7 @@ class FengYunBianHuan : Card {
         val resolveFunc = { _: Boolean ->
             ExecuteFengYunBianHuan(this@FengYunBianHuan, drawCards, players, fsm)
         }
-        players.forEach { it.weiBiFailRate = 0 }
+        r.weiBiFailRate = 0
         g.resolve(ResolveCard(r, r, null, getOriginCard(), Feng_Yun_Bian_Huan, resolveFunc, fsm))
     }
 
@@ -105,7 +105,7 @@ class FengYunBianHuan : Card {
             r.game!!.players.send { player ->
                 waitForFengYunBianHuanChooseCardToc {
                     playerId = player.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = r.game!!.waitSecond
                     if (player === r) {
                         val seq2 = player.seq
                         seq = seq2
@@ -194,38 +194,46 @@ class FengYunBianHuan : Card {
                         cardId = card.id
                         asMessageCard = true
                     } else {
-                        if (r === mainPhaseIdle.whoseTurn) {
-                            cardId = drawCards.filter { it.type == Wei_Bi }
-                                .ifEmpty { drawCards }.bestCard(r.identity).id
-                            asMessageCard = false
-                        } else {
-                            cardId = drawCards.bestCard(r.identity).id
-                            asMessageCard = false
-                        }
+                        cardId =
+                            if (r === mainPhaseIdle.whoseTurn) {
+                                drawCards.filter { it.type == Wei_Bi } // 自己回合优先拿威逼
+                                    .ifEmpty { drawCards.filterByRole(r.role) } // 没有威逼先按拿牌偏好
+                                    .ifEmpty { drawCards } // 都没有就全随机
+                            } else {
+                                drawCards.filterByRole(r.role) // 非自己回合按拿牌偏好
+                                    .ifEmpty { drawCards } // 没有就全随机
+                            }.bestCard(r.identity).id
+                        asMessageCard = false
                     }
                 })
             }
         }
     }
 
-    override fun toString(): String {
-        return "${cardColorToString(colors)}风云变幻"
-    }
+    override fun toString(): String = "${cardColorToString(colors)}风云变幻"
 
     companion object {
         fun ai(e: MainPhaseIdle, card: Card, convertCardSkill: ConvertCardSkill?): Boolean {
             val player = e.whoseTurn
             !player.cannotPlayCard(Feng_Yun_Bian_Huan) || return false
-            when {
-                player.identity == Black && player.secretTask == Sweeper -> return false
-                player.identity == Black && player.secretTask in listOf(Collector, Mutator) ->
-                    if (player.messageCards.any { !it.isPureBlack() }) return false
-
-                player.identity != Black -> if (player.game!!.players.all {
-                        !it!!.alive || it.identity != player.identity ||
-                            it.messageCards.any { c -> player.identity in c.colors }
-                    }) return false
-            }
+            if (player.identity == Black) {
+                when (player.secretTask) {
+                    Disturber -> {}
+                    Collector, Mutator -> {
+                        val counts = CountColors(player.messageCards)
+                        var zeroColors = 0
+                        if (counts.red == 0) zeroColors++
+                        if (counts.blue == 0) zeroColors++
+                        if (counts.blue == 0) zeroColors++
+                        if (zeroColors < 2) return false
+                    }
+                    else -> return false
+                }
+            } else if (player.game!!.players.all {
+                    !it!!.alive ||
+                        it.identity != player.identity ||
+                        it.messageCards.any { c -> player.identity in c.colors }
+                }) return false
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
                 card.asCard(Feng_Yun_Bian_Huan).execute(player.game!!, player)

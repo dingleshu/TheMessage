@@ -12,7 +12,7 @@ import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
 
 /**
- * 成年小九技能【联信】：接收其他角色情报后，可以翻开此角色，摸两张牌，然后将一张含该情报相同颜色的手牌置入传出者的情报区。
+ * 成年小九、成年韩梅技能【暗度陈仓】：接收其他角色情报后，可以翻开此角色，摸两张牌，然后将一张含该情报相同颜色的手牌置入传出者的情报区。
  */
 class LianXin : TriggeredSkill {
     override val skillId = SkillId.LIAN_XIN
@@ -42,7 +42,7 @@ class LianXin : TriggeredSkill {
                 if (p === event.inFrontOfWhom)
                     p.notifyReceivePhase(event.whoseTurn, event.inFrontOfWhom, event.messageCard, event.inFrontOfWhom)
                 else if (p is HumanPlayer)
-                    p.send(unknownWaitingToc { waitingSecond = Config.WaitSecond })
+                    p.send(unknownWaitingToc { waitingSecond = event.whoseTurn.game!!.waitSecond })
             }
             return null
         }
@@ -77,7 +77,7 @@ class LianXin : TriggeredSkill {
             r.incrSeq()
             g.playerSetRoleFaceUp(r, true)
             val target = event.sender
-            logger.info("${r}发动了[联信]")
+            logger.info("${r}发动了[暗度陈仓]")
             r.draw(2)
             val hasNext = target.alive && r.cards.any(checkCard)
             g.players.send { p ->
@@ -86,7 +86,7 @@ class LianXin : TriggeredSkill {
                     targetPlayerId = p.getAlternativeLocation(target.location)
                     messageCard = event.messageCard.toPbCard()
                     if (hasNext) {
-                        waitingSecond = Config.WaitSecond
+                        waitingSecond = g.waitSecond
                         if (p === r) seq = p.seq
                     }
                 }
@@ -117,7 +117,7 @@ class LianXin : TriggeredSkill {
                             this.seq = seq
                         })
                     }
-                }, r.getWaitSeconds(Config.WaitSecond + 2).toLong(), TimeUnit.SECONDS)
+                }, r.getWaitSeconds(r.game!!.waitSecond + 2).toLong(), TimeUnit.SECONDS)
             } else {
                 var value = Int.MIN_VALUE
                 var card = r.cards.first(checkCard)

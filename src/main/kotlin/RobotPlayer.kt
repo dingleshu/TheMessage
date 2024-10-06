@@ -8,6 +8,7 @@ import com.fengsheng.protos.Common.color.Black
 import com.fengsheng.protos.Common.direction
 import com.fengsheng.protos.Common.direction.Left
 import com.fengsheng.protos.Common.direction.Right
+import com.fengsheng.protos.Common.role.zhang_yi_ting
 import com.fengsheng.protos.Common.secret_task.*
 import com.fengsheng.protos.endReceivePhaseTos
 import com.fengsheng.protos.notifyDieGiveCardToc
@@ -30,18 +31,24 @@ class RobotPlayer : Player() {
         val fsm = game!!.fsm as MainPhaseIdle
         if (this !== fsm.whoseTurn) return
         for (skill in skills) {
-            val ai = aiSkillMainPhase[skill.skillId] ?: continue
+            val ai = aiSkillMainPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as ActiveSkill)) return
         }
-        if (!Config.IsGmEnable && !game!!.players.any {
-                it is HumanPlayer && (Statistics.getScore(it.playerName) ?: 0) > 0
-            }) {
-            if (Random.nextInt(4) != 0) { // 对于0分的新人，机器人有3/4的概率在出牌阶段不打牌
-                GameExecutor.post(game!!, { game!!.resolve(SendPhaseStart(this)) }, 1, TimeUnit.SECONDS)
-                return
+        if (!Config.IsGmEnable && game!!.players.count { it is HumanPlayer } == 1) {
+            val human = game!!.players.first { it is HumanPlayer }!!
+            if (isEnemy(human)) { // 对于低分的新人，敌方机器人可能不出牌
+                val info = Statistics.getPlayerInfo(human.playerName)
+                if (info != null) {
+                    val score = info.score
+                    val isPowerfulPlayer = info.winCount > 0 && info.winCount * 2 >= info.gameCount
+                    if (!isPowerfulPlayer && score < 60 && Random.nextInt(60) >= score) {
+                        GameExecutor.post(game!!, { game!!.resolve(SendPhaseStart(this)) }, 1, TimeUnit.SECONDS)
+                        return
+                    }
+                }
             }
         }
-        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null) {
+        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null || cards.size == 1 && cards.first().type == Ping_Heng) {
             val cardTypes =
                 if (findSkill(JI_SONG) == null && (findSkill(GUANG_FA_BAO) == null || roleFaceUp))
                     cardOrder.keys.sortedBy { cardOrder[it] }
@@ -55,6 +62,10 @@ class RobotPlayer : Player() {
                     if (ai(fsm, card, convertCardSkill)) return
                 }
             }
+        }
+        for (skill in skills) {
+            val ai = aiSkillMainPhase2[skill.skillId] ?: continue
+            if (ai(fsm, skill as ActiveSkill)) return
         }
         GameExecutor.post(game!!, { game!!.resolve(SendPhaseStart(this)) }, 1, TimeUnit.SECONDS)
     }
@@ -107,49 +118,53 @@ class RobotPlayer : Player() {
 
     override fun startSendPhaseTimer(waitSecond: Int) {
         val fsm = game!!.fsm as SendPhaseIdle
-        for (card in cards) {
-            val ai = aiSendPhase[card.type] ?: continue
-            if (ai(fsm, card)) return
+        if (!cannotPlayCard(Po_Yi)) {
+            for (card in cards.sortCards(identity)) {
+                val (ok, convertCardSkill) = canUseCardTypes(Po_Yi, card)
+                ok || continue
+                val ai = aiSendPhase[card.type] ?: continue
+                if (ai(fsm, card, convertCardSkill)) return
+            }
         }
         GameExecutor.post(game!!, {
-            val receive = fsm.mustReceiveMessage() || // 如果必须接收，则接收
-                !fsm.cannotReceiveMessage() && // 如果不能接收，则不接收
+            val receive = fsm.mustReceiveMessage() ||
+                // 如果必须接收，则接收
+                !fsm.cannotReceiveMessage() &&
+                // 如果不能接收，则不接收
                 run {
-                    val oldValue =
+                    val myValue = // 自己接的收益
                         calculateMessageCardValue(fsm.whoseTurn, this, fsm.messageCard, sender = fsm.sender)
-                    var newValue =
+                    val nextPlayer =
                         when (fsm.dir) {
-                            Left -> {
-                                val left = fsm.inFrontOfWhom.getNextLeftAlivePlayer()
-                                calculateMessageCardValue(fsm.whoseTurn, left, fsm.messageCard, sender = fsm.sender)
-                            }
-
-                            Right -> {
-                                val right = fsm.inFrontOfWhom.getNextRightAlivePlayer()
-                                calculateMessageCardValue(
-                                    fsm.whoseTurn,
-                                    right,
-                                    fsm.messageCard,
-                                    sender = fsm.sender
-                                )
-                            }
-
-                            else -> {
-                                calculateMessageCardValue(
-                                    fsm.whoseTurn,
-                                    fsm.sender,
-                                    fsm.messageCard,
-                                    sender = fsm.sender
-                                )
-                            }
+                            Left -> fsm.inFrontOfWhom.getNextLeftAlivePlayer()
+                            Right -> fsm.inFrontOfWhom.getNextRightAlivePlayer()
+                            else -> fsm.sender
                         }
-                    newValue = (newValue * 10 + calculateMessageCardValue(
-                        fsm.whoseTurn,
-                        fsm.lockedPlayers.ifEmpty { listOf(fsm.sender) }.first(),
-                        fsm.messageCard,
-                        sender = fsm.sender
-                    )) / 11
-                    newValue <= oldValue
+                    // 我看下家的收益
+                    val myNextValue = calculateMessageCardValue(fsm.whoseTurn, nextPlayer, fsm.messageCard, sender = fsm.sender)
+                    // 下家看自己的收益
+                    val nextNextValue = nextPlayer.calculateMessageCardValue(
+                        fsm.whoseTurn, nextPlayer, fsm.messageCard, sender = fsm.sender
+                    )
+                    // 下家看自己的收益或我看自己的收益大于等于0时，才考虑比较双方收益，如果都小于0就不接
+                    if (myValue >= 0 || nextNextValue >= 0) {
+                        if (myValue > myNextValue) return@run true // 自己比下家收益高就接
+                        if (myValue == myNextValue && myValue >= 0) {
+                            // 相等的情况下，下家和自己是队友，且下家是张一挺就不接，否则接
+                            return@run !(isPartner(nextPlayer) && nextPlayer.role == zhang_yi_ting)
+                        }
+                    }
+                    val lockPlayer = fsm.lockedPlayers.ifEmpty { listOf(fsm.sender) }.first()
+                    if (isPartner(lockPlayer)) { // 场上有被锁的队友
+                        val lockValue = calculateMessageCardValue(
+                            fsm.whoseTurn,
+                            lockPlayer,
+                            fsm.messageCard,
+                            sender = fsm.sender
+                        )
+                        if (lockValue < myValue) return@run true // 被锁的队友收益小于自己就接
+                    }
+                    false // 其它情况都不接
                 }
             game!!.resolve(
                 if (receive)
@@ -163,7 +178,7 @@ class RobotPlayer : Player() {
                 else
                     MessageMoveNext(fsm)
             )
-        }, 1, TimeUnit.SECONDS)
+        }, 1500, TimeUnit.MILLISECONDS)
     }
 
     override fun notifyChooseReceiveCard(player: Player) {
@@ -173,30 +188,46 @@ class RobotPlayer : Player() {
     override fun notifyFightPhase(waitSecond: Int) {
         val fsm = game!!.fsm as FightPhaseIdle
         this === fsm.whoseFightTurn || return
-        if (!Config.IsGmEnable && !game!!.players.any {
-                it is HumanPlayer && (Statistics.getScore(it.playerName) ?: 0) > 0
-            }) {
-            if (Random.nextInt(4) != 0) { // 对于0分的新人，机器人有3/4的概率在争夺阶段不打牌
-                GameExecutor.post(game!!, { game!!.resolve(FightPhaseNext(fsm)) }, 500, TimeUnit.MILLISECONDS)
-                return
+        val delay = game!!.animationDelayMs
+        game!!.animationDelayMs = 0
+        if (!Config.IsGmEnable && game!!.players.count { it is HumanPlayer } == 1) {
+            val human = game!!.players.first { it is HumanPlayer }!!
+            if (isEnemy(human)) { // 对于低分的新人，敌方机器人可能不出牌
+                val info = Statistics.getPlayerInfo(human.playerName)
+                if (info != null) {
+                    val score = info.score
+                    val isPowerfulPlayer = info.winCount > 0 && info.winCount * 2 >= info.gameCount
+                    if (!isPowerfulPlayer && score < 60 && Random.nextInt(60) >= score) {
+                        GameExecutor.post(game!!, { game!!.resolve(FightPhaseNext(fsm)) }, 500 + delay, TimeUnit.MILLISECONDS)
+                        return
+                    }
+                }
             }
         }
         for (skill in skills) {
             val ai = aiSkillFightPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as? ActiveSkill)) return
         }
-        if (!game!!.isEarly || this === fsm.whoseTurn || game!!.players.any {
-                isPartnerOrSelf(it!!) && it.willDie(fsm.messageCard)
-            } || calculateMessageCardValue(fsm.whoseTurn, fsm.inFrontOfWhom, fsm.messageCard) <= -110) {
+        if (!game!!.isEarly ||
+            this === fsm.whoseTurn ||
+            isPartnerOrSelf(fsm.inFrontOfWhom) &&
+            fsm.inFrontOfWhom.willDie(fsm.messageCard) ||
+            calculateMessageCardValue(fsm.whoseTurn, fsm.inFrontOfWhom, fsm.messageCard, sender = fsm.sender) <= -110) {
             val result = calFightPhase(fsm)
-            if (result != null && result.deltaValue > 10) {
+            if (result != null && result.deltaValue > 11) {
+                var actualDelay = 3L
+                var timeUnit = TimeUnit.SECONDS
+                if (delay > 0) {
+                    actualDelay = 3000L + delay
+                    timeUnit = TimeUnit.MILLISECONDS
+                }
                 GameExecutor.post(game!!, {
                     result.convertCardSkill?.onConvert(this)
                     if (result.cardType == Wu_Dao)
                         result.card.asCard(result.cardType).execute(game!!, this, result.wuDaoTarget!!)
                     else
                         result.card.asCard(result.cardType).execute(game!!, this)
-                }, 3, TimeUnit.SECONDS)
+                }, actualDelay, timeUnit)
                 return
             }
             for (skill in skills) {
@@ -204,7 +235,7 @@ class RobotPlayer : Player() {
                 if (ai(fsm, skill as ActiveSkill)) return
             }
         }
-        GameExecutor.post(game!!, { game!!.resolve(FightPhaseNext(fsm)) }, 500, TimeUnit.MILLISECONDS)
+        GameExecutor.post(game!!, { game!!.resolve(FightPhaseNext(fsm)) }, 500 + delay, TimeUnit.MILLISECONDS)
     }
 
     override fun notifyReceivePhase() {
@@ -268,22 +299,24 @@ class RobotPlayer : Player() {
         val fsm = game!!.fsm as WaitForDieGiveCard
         if (whoDie !== this) return
         GameExecutor.post(game!!, {
-            if (identity != Black) {
-                val target = game!!.players.find { it !== this && it!!.alive && it.identity == identity }
-                if (target != null) {
-                    val giveCards = cards.sortCards(identity, true).takeLast(3)
-                    if (giveCards.isNotEmpty()) {
-                        cards.removeAll(giveCards.toSet())
-                        target.cards.addAll(giveCards)
-                        game!!.addEvent(GiveCardEvent(fsm.whoseTurn, this, target))
-                        logger.info("${this}给了${target}${giveCards.joinToString()}")
-                        game!!.players.send { p ->
-                            notifyDieGiveCardToc {
-                                playerId = p.getAlternativeLocation(location)
-                                targetPlayerId = p.getAlternativeLocation(target.location)
-                                if (p === target) giveCards.forEach { card.add(it.toPbCard()) }
-                                else unknownCardCount = giveCards.size
-                            }
+            var target: Player? = null
+            if (identity != Black)
+                target = game!!.players.find { it !== this && it!!.alive && it.identity == identity }
+            if (target == null) // 如果没有人给，则从本回合没有出过牌的人（不包含该回合角色和情报传出者）中随机挑一个给
+                target = game!!.players.filter { it !== fsm.whoseTurn && it!!.alive && !it.useCardThisTurn }.randomOrNull()
+            if (target != null) {
+                val giveCards = cards.sortCards(identity, true).takeLast(3)
+                if (giveCards.isNotEmpty()) {
+                    cards.removeAll(giveCards.toSet())
+                    target.cards.addAll(giveCards)
+                    game!!.addEvent(GiveCardEvent(fsm.whoseTurn, this, target))
+                    logger.info("${this}给了${target}${giveCards.joinToString()}")
+                    game!!.players.send { p ->
+                        notifyDieGiveCardToc {
+                            playerId = p.getAlternativeLocation(location)
+                            targetPlayerId = p.getAlternativeLocation(target.location)
+                            if (p === target) giveCards.forEach { card.add(it.toPbCard()) }
+                            else unknownCardCount = giveCards.size
                         }
                     }
                 }
@@ -293,10 +326,9 @@ class RobotPlayer : Player() {
     }
 
     companion object {
-        private val aiSkillMainPhase = hashMapOf(
+        private val aiSkillMainPhase1 = hashMapOf(
             XIN_SI_CHAO to XinSiChao::ai,
             GUI_ZHA to GuiZha::ai,
-            JIAO_JI to JiaoJi::ai,
             JIN_BI to JinBi::ai,
             JI_BAN to JiBan::ai,
             BO_AI to BoAi::ai,
@@ -309,6 +341,9 @@ class RobotPlayer : Player() {
             TAO_QU to TaoQu::ai,
             TAN_XU_BIAN_SHI to TanXuBianShi::ai,
             HOU_ZI_QIE_XIN to HouZiQieXin::ai,
+        )
+        private val aiSkillMainPhase2 = hashMapOf(
+            JIAO_JI to JiaoJi::ai,
         )
         private val aiSkillSendPhaseStart = hashMapOf(
             LENG_XUE_XUN_LIAN to LengXueXunLian::ai,
@@ -348,7 +383,6 @@ class RobotPlayer : Player() {
             JIAN_REN to JianRen::ai,
             CHI_ZI_ZHI_XIN to ChiZiZhiXin::ai,
             LIAN_XIN to LianXin::ai,
-            MI_XIN to MiXin::ai,
             JIAN_DI_FENG_XING to JianDiFengXing::ai,
             ZHUANG_ZHI_MAN_HUAI to ZhuangZhiManHuai::ai,
             AN_CANG_SHA_JI to AnCangShaJi::ai,
@@ -400,10 +434,9 @@ class RobotPlayer : Player() {
          * @param reverse 为`false`时，表示把有用的牌排在前面，没用的牌排在后面。不填为`false`
          * @return 一个新的`List`，包含了排列好的牌
          */
-        fun Iterable<Card>.sortCards(c: color, reverse: Boolean = false): List<Card> {
-            return if (reverse) sortedBy { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
+        fun Iterable<Card>.sortCards(c: color, reverse: Boolean = false): List<Card> =
+            if (reverse) sortedBy { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
             else sortedBy { cardOrder[it.type]!! + if (c in it.colors) 1 else 0 }
-        }
 
         /**
          * 获得最有（最无）价值的牌（换句话说，就是[sortCards]后的第一个）
@@ -413,10 +446,9 @@ class RobotPlayer : Player() {
          * @return 最有（最无）价值的牌
          * @throws NoSuchElementException 如果列表为空
          */
-        fun Iterable<Card>.bestCard(c: color, reverse: Boolean = false): Card {
-            return if (reverse) minBy { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
+        fun Iterable<Card>.bestCard(c: color, reverse: Boolean = false): Card =
+            if (reverse) minBy { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
             else minBy { cardOrder[it.type]!! + if (c in it.colors) 1 else 0 }
-        }
 
         /**
          * 获得最有（最无）价值的牌（换句话说，就是[sortCards]后的第一个）
@@ -425,9 +457,8 @@ class RobotPlayer : Player() {
          * @param reverse 为`false`时，表示最有价值的牌。不填为`false`
          * @return 最有（最无）价值的牌，如果列表为空，则返回`null`
          */
-        fun Iterable<Card>.bestCardOrNull(c: color, reverse: Boolean = false): Card? {
-            return if (reverse) minByOrNull { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
+        fun Iterable<Card>.bestCardOrNull(c: color, reverse: Boolean = false): Card? =
+            if (reverse) minByOrNull { -cardOrder[it.type]!! * 100 + if (c in it.colors) 1 else 0 }
             else minByOrNull { cardOrder[it.type]!! + if (c in it.colors) 1 else 0 }
-        }
     }
 }

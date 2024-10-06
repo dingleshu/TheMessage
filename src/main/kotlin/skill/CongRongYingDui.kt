@@ -41,7 +41,7 @@ class CongRongYingDui : TriggeredSkill {
                 waitForSkillCongRongYingDuiToc {
                     playerId = player.getAlternativeLocation(r.location)
                     targetPlayerId = player.getAlternativeLocation(target.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = r.game!!.waitSecond
                     if (player === r) {
                         val seq = player.seq
                         this.seq = seq
@@ -62,7 +62,7 @@ class CongRongYingDui : TriggeredSkill {
                         enable = true
                         drawCard = target.cards.isEmpty() || target.isPartnerOrSelf(r)
                     })
-                }, 1, TimeUnit.SECONDS)
+                }, 2, TimeUnit.SECONDS)
             }
             return null
         }

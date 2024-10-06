@@ -2,8 +2,10 @@ package com.fengsheng.skill
 
 import com.fengsheng.*
 import com.fengsheng.RobotPlayer.Companion.bestCard
-import com.fengsheng.card.WeiBi
+import com.fengsheng.card.filterByRole
 import com.fengsheng.phase.MainPhaseIdle
+import com.fengsheng.protos.Common.*
+import com.fengsheng.protos.Common.card_type.*
 import com.fengsheng.protos.Role.skill_ji_ban_a_tos
 import com.fengsheng.protos.Role.skill_ji_ban_b_tos
 import com.fengsheng.protos.skillJiBanAToc
@@ -55,7 +57,7 @@ class JiBan : MainPhaseSkill() {
             g.players.send { p ->
                 skillJiBanAToc {
                     playerId = p.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = g.waitSecond
                     if (p === r) {
                         val seq2 = p.seq
                         seq = seq2
@@ -136,19 +138,43 @@ class JiBan : MainPhaseSkill() {
 
         private fun autoSelect(seq: Int) {
             val availableTargets = r.game!!.players.filter { it!!.alive && it !== r } // 如果所有人都死了游戏就结束了，所以这里一定不为空
-            val card =
-                if (seq != 0) r.cards.random()
-                else r.cards.bestCard(r.identity, true)
             val players =
                 if (seq != 0) availableTargets
-                else availableTargets.filter { r.isPartner(it!!) }.ifEmpty {
-                    if (card.type in WeiBi.availableCardType) r.weiBiFailRate = 0
-                    availableTargets
-                } // 机器人优先选队友
+                // 机器人优先选队友
+                else availableTargets.filter { r.isPartner(it!!) }.ifEmpty { availableTargets }
             val player = players.random()!!
+
+            val chosenCard =
+                if (seq != 0) listOf(r.cards.random())
+                else {
+                    // 如果手里有平衡，同时选中了队友，那么把除平衡外所有牌都给出去
+                    if (r.cards.any { card -> card.type == Ping_Heng } && r.isPartner(player)) {
+                        r.cards.sortedBy { card -> card.type == Ping_Heng }.dropLast(1)
+                    }
+                    // 如果手里没有平衡，且选中了队友，那么选对该角色价值最高的牌给出去
+                    else if (r.isPartner(player)) {
+                        val chosenCardTemp = r.cards.filterByRole(player.role)
+                        // 没有符合该角色特别需求的牌，那么就选中一个价值最高的牌
+                        if (chosenCardTemp.isEmpty()) {
+                            listOf(r.cards.bestCard(r.identity, false))
+                        }
+                        // 全部手牌都是该角色特别需求的牌，那么留一张当手牌其他全部给出去
+                        else if (chosenCardTemp.size == r.cards.size) {
+                            chosenCardTemp.dropLast(1)
+                        }
+                        // 把该角色特别需求的牌全部给出去
+                        else {
+                            chosenCardTemp
+                        }
+                    }
+                    // 如果手里没有平衡，且选中了敌方，那么选价值最低的牌给出去
+                    else {
+                        listOf(r.cards.bestCard(r.identity, true))
+                    }
+                }
             r.game!!.tryContinueResolveProtocol(r, skillJiBanBTos {
                 targetPlayerId = r.getAlternativeLocation(player.location)
-                cardIds.add(card.id)
+                chosenCard.forEach { cardIds.add(it.id) }
                 this.seq = seq
             })
         }

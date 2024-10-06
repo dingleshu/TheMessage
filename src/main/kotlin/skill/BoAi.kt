@@ -2,6 +2,7 @@ package com.fengsheng.skill
 
 import com.fengsheng.*
 import com.fengsheng.RobotPlayer.Companion.bestCard
+import com.fengsheng.card.filterByRole
 import com.fengsheng.phase.MainPhaseIdle
 import com.fengsheng.protos.Role.skill_bo_ai_a_tos
 import com.fengsheng.protos.Role.skill_bo_ai_b_tos
@@ -53,7 +54,7 @@ class BoAi : MainPhaseSkill() {
             g.players.send { p ->
                 skillBoAiAToc {
                     playerId = p.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = g.waitSecond
                     if (p === r) {
                         val seq2 = p.seq
                         seq = seq2
@@ -72,7 +73,10 @@ class BoAi : MainPhaseSkill() {
                             val player = r.game!!.players.find { it!!.alive && it.isPartner(r) && it.isFemale }
                             if (player != null) {
                                 targetPlayerId = r.getAlternativeLocation(player.location)
-                                cardId = r.cards.bestCard(r.identity, true).id
+                                val chosenCard = r.cards.filterByRole(player.role)
+                                cardId =
+                                    if (chosenCard.isEmpty()) r.cards.bestCard(r.identity, true).id
+                                    else chosenCard.random().id
                             }
                         }
                     })

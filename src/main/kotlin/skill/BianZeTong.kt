@@ -41,7 +41,7 @@ class BianZeTong : TriggeredSkill {
             r.game!!.players.send { p ->
                 skillWaitForBianZeTongToc {
                     playerId = p.getAlternativeLocation(r.location)
-                    waitingSecond = Config.WaitSecond
+                    waitingSecond = r.game!!.waitSecond
                     if (p === r) {
                         val seq = p.seq
                         this.seq = seq
@@ -125,7 +125,7 @@ class BianZeTong : TriggeredSkill {
     /**
      * 有这个技能的玩家，[cardTypeA]只能当作[cardTypeB]使用
      */
-    private class BianZeTong2(cardTypeA: card_type, cardTypeB: card_type) : OneTurnSkill,
+    class BianZeTong2(cardTypeA: card_type, cardTypeB: card_type) : OneTurnSkill,
         ConvertCardSkill(cardTypeA, listOf(cardTypeB), true) {
         override val isInitialSkill = false
     }
