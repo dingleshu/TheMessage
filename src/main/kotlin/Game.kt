@@ -54,7 +54,11 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         get() {
             val cnt = players.count { it is HumanPlayer }
             return when (cnt) {
-                1 -> Config.WaitSeconds * 2
+                1 -> {
+                    val humanPlayers = players.filterIsInstance<HumanPlayer>()
+                    if (humanPlayers[0].playerName == "唐乐林") Config.WaitSeconds * 200
+                    else Config.WaitSeconds * 2
+                }
                 2 -> Config.WaitSeconds
                 else -> (Config.WaitSeconds * (1 - 0.05 * cnt)).toInt()
             }
