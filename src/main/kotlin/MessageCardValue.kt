@@ -14,6 +14,7 @@ import com.fengsheng.protos.Common.direction.*
 import com.fengsheng.protos.Common.secret_task.*
 import com.fengsheng.skill.*
 import com.fengsheng.skill.LengXueXunLian.MustLockOne
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /**
@@ -383,6 +384,9 @@ fun Player.calculateMessageCardValue(
             }
         }
     }
+    if (v1 > 460) v1 = 600
+    else if (v1 < -460) v1 = -600
+    v1 = (v1 * coefficientA + coefficientB).roundToInt()
     if (v1 > 460) v1 = 600
     else if (v1 < -460) v1 = -600
     return v1
