@@ -32,7 +32,7 @@ class AddRobotTos : AbstractProtoHandler<Fengsheng.add_robot_tos>() {
                 }
                 if (Game.gameCache.count { (_, v) -> // 未开始或有空位的房间（含本房间）大于1，则禁止开局
                         !v.isStarted || v.players.any { it !is HumanPlayer }
-                    } > 1) {
+                    } > 2) {
                     r.sendErrorMessage("""有其他玩家正在进行游戏，请等待他们一起吧！""")
                     return
                 }
