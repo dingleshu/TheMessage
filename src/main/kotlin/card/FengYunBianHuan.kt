@@ -184,7 +184,7 @@ class FengYunBianHuan : Card {
                 // 风云变幻选牌的情况下，因为都是明牌，不应该进行机器人打牌风格的波动
                 val coefficientA = r.coefficientA
                 val coefficientB = r.coefficientB
-                r.coefficientA = 0.0
+                r.coefficientA = 1.0
                 r.coefficientB = 0
                 for (c in drawCards) {
                     !r.messageCards.any { it.hasSameColor(c) } || continue
