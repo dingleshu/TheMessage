@@ -656,10 +656,10 @@ fun Player.calSendMessageCard(
     }
     if (result.card.canLock() || skills.any { it is MustLockOne || it is QiangYingXiaLing }) {
         val removedCard = if (isYuQinGuZong) deleteMessageCard(result.card.id) else null
-        var maxValue = Int.MIN_VALUE
         var lockTarget: Player? = null
         when (result.dir) {
             Left -> {
+                var maxValue = Int.MIN_VALUE
                 val targets = game!!.sortedFrom(game!!.players.filter { it!!.alive }, location)
                 for (i in listOf(0) + ((targets.size - 1) downTo 1)) {
                     val target = targets[i]
@@ -672,6 +672,7 @@ fun Player.calSendMessageCard(
             }
 
             Right -> {
+                var maxValue = Int.MIN_VALUE
                 val targets = game!!.sortedFrom(game!!.players.filter { it!!.alive }, location)
                 for (target in targets) {
                     val v = calculateMessageCardValue(whoseTurn, target, result.card, sender = this)
@@ -682,17 +683,19 @@ fun Player.calSendMessageCard(
                 }
             }
 
-            else -> {
-                for (player in listOf(this, result.target)) {
-                    val v = calculateMessageCardValue(whoseTurn, player, result.card, sender = this)
-                    if (v > maxValue) {
-                        maxValue = v
-                        lockTarget = player
-                    }
-                }
+            else -> { // 向上的情报
+                val v1 = calculateMessageCardValue(whoseTurn, this, result.card, sender = this)
+                val v2 = calculateMessageCardValue(whoseTurn, result.target, result.card, sender = this)
+                // 如果不同，则锁分数高的。如果相同，则不锁
+                if (v1 > v2) lockTarget = this
+                else if (v1 < v2) lockTarget = result.target
             }
         }
-        lockTarget?.let { if (result.dir == Up && isPartner(result.target) || it !== this) result.lockedPlayers = listOf(it) }
+        lockTarget?.let {
+            // 如果刚开局，就不锁自己。如果是左右情报，就不锁自己。如果传递目标不是队友，就不锁自己
+            if (!game!!.isEarly && result.dir == Up && isPartner(result.target) || it !== this)
+                result.lockedPlayers = listOf(it)
+        }
         removedCard?.let { messageCards.add(it) }
     }
     logger.debug("计算结果：${result.card}(cardId:${result.card.id})传递给${result.target}，方向是${result.dir}，分数为${result.value}")
