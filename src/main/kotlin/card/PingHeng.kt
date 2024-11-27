@@ -102,7 +102,7 @@ class PingHeng : Card {
             }
             p.size >= 1 || return false
             val target = p.maxBy {
-                abs(it!!.cards.size - 3.1).run { if (identity == Black && it.identity != Black) this / 2 else this }
+                abs(it!!.cards.size - 3.1).run { if (identity != Black && it.identity == Black) this / 2 else this }
             }
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
