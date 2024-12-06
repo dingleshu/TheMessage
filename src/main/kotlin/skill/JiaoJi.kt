@@ -150,6 +150,7 @@ class JiaoJi : MainPhaseSkill() {
             }
             r.incrSeq()
             logger.info("${r}将${cards.joinToString()}还给$target")
+            cards.forEach { g.canWeiBiCardIds.add(it.id) }
             r.cards.removeAll(cards.toSet())
             target.cards.addAll(cards)
             g.players.send { p ->

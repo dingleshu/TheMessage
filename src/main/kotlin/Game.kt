@@ -49,6 +49,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var playTime: Long = 0
     val isEarly: Boolean
         get() = turn <= players.size
+    val canWeiBiCardIds = ArrayList<Int>()
 
     val waitSecond: Int
         get() {

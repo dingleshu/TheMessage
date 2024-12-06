@@ -178,6 +178,7 @@ class WeiBi : Card {
                     r.weiBiFailRate++
                     ExecuteWeiBi(fsm, r, target, card, wantType)
                 } else {
+                    target.cards.forEach { g.canWeiBiCardIds.add(it.id) }
                     r.weiBiFailRate = 0
                     logger.info("${target}向${r}展示了所有手牌")
                     g.players.send { p ->
@@ -232,8 +233,10 @@ class WeiBi : Card {
                     it.isEnemy(player) &&
                     it.cards.any { card -> card.type in availableCardType }
             }.run {
-                filter { it!!.cards.any { card -> card.type in listOf(Jie_Huo, Wu_Dao, Diao_Bao) } }.ifEmpty { this }
-                    .run { if (player.identity != Black) filter { it!!.identity != Black }.ifEmpty { this } else this }
+                filter { it!!.cards.any { card -> card.id in player.game!!.canWeiBiCardIds } }.ifEmpty {
+                    filter { it!!.cards.any { card -> card.type in listOf(Jie_Huo, Wu_Dao, Diao_Bao) } }.ifEmpty { this }
+                        .run { if (player.identity != Black) filter { it!!.identity != Black }.ifEmpty { this } else this }
+                }
             }.randomOrNull() ?: return false
             val cardType =
                 if (player.weiBiFailRate > 0) listOf(Jie_Huo, Wu_Dao, Diao_Bao).random() // 威逼成功后一定纯随机

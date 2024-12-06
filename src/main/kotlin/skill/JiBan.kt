@@ -120,6 +120,7 @@ class JiBan : MainPhaseSkill() {
             }
             r.incrSeq()
             logger.info("${r}将${cards.joinToString()}交给$target")
+            cards.forEach { g.canWeiBiCardIds.add(it.id) }
             r.cards.removeAll(cards.toSet())
             target.cards.addAll(cards)
             g.players.send { p ->
