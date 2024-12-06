@@ -225,22 +225,21 @@ class FengYunBianHuan : Card {
             !player.cannotPlayCard(Feng_Yun_Bian_Huan) || return false
             if (player.identity == Black) {
                 when (player.secretTask) {
-                    Disturber -> {}
-                    Collector, Mutator -> {
-                        val counts = CountColors(player.messageCards)
-                        var zeroColors = 0
-                        if (counts.red == 0) zeroColors++
-                        if (counts.blue == 0) zeroColors++
-                        if (counts.blue == 0) zeroColors++
-                        if (zeroColors < 2) return false
-                    }
+                    Collector, Mutator, Disturber ->
+                        if (!player.game!!.isEarly) return false
                     else -> return false
                 }
-            } else if (player.game!!.players.all {
-                    !it!!.alive ||
-                        it.identity != player.identity ||
-                        it.messageCards.any { c -> player.identity in c.colors }
-                }) return false
+            } else if (!player.game!!.isEarly) {
+                var score = 0
+                val alivePlayers = player.game!!.players.filterNotNull().filter { it.alive }
+                var curScore = alivePlayers.size
+                for (p in player.game!!.sortedFrom(alivePlayers, player.location)) {
+                    if (p.identity == player.identity) score += curScore
+                    else if (p.identity != Black) score -= curScore
+                    curScore--
+                }
+                score > 0 || return false
+            }
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
                 card.asCard(Feng_Yun_Bian_Huan).execute(player.game!!, player)
