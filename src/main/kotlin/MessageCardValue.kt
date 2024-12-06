@@ -359,6 +359,11 @@ fun Player.calculateMessageCardValue(
                 addScore(inFrontOfWhom, 80)
             }
         }
+        if (!inFrontOfWhom.roleFaceUp && (inFrontOfWhom.hasEverFaceUp || inFrontOfWhom === this) &&
+            inFrontOfWhom !== sender && inFrontOfWhom.skills.any { it is LianXin }) {
+            // 成年小九、成年韩梅【暗度陈仓】
+            addScore(inFrontOfWhom, if (sender.isPartner(inFrontOfWhom)) 20 else 10)
+        }
         if (Black in colors && inFrontOfWhom.roleFaceUp &&
             inFrontOfWhom.skills.any { it is YiXin } && inFrontOfWhom.messageCards.count(Black) == 2) {
             // 李宁玉【遗信】
