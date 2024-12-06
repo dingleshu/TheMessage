@@ -238,8 +238,10 @@ class WeiBi : Card {
                         .run { if (player.identity != Black) filter { it!!.identity != Black }.ifEmpty { this } else this }
                 }
             }.randomOrNull() ?: return false
+            val canWeiBiCards = p.cards.filter { it.id in player.game!!.canWeiBiCardIds }
             val cardType =
-                if (player.weiBiFailRate > 0) listOf(Jie_Huo, Wu_Dao, Diao_Bao).random() // 威逼成功后一定纯随机
+                if (canWeiBiCards.isNotEmpty()) canWeiBiCards.random().type // 有明牌优先威逼明牌
+                else if (player.weiBiFailRate > 0) listOf(Jie_Huo, Wu_Dao, Diao_Bao).random() // 威逼成功后一定纯随机
                 else availableCardType.filter { cardType -> p.cards.any { it.type == cardType } }.run {
                     filter { it != Cheng_Qing }.ifEmpty { this }
                 }.random()

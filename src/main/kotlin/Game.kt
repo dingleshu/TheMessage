@@ -49,6 +49,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var playTime: Long = 0
     val isEarly: Boolean
         get() = turn <= players.size
+
+    /** 威逼的明牌，回合末清空 */
     val canWeiBiCardIds = ArrayList<Int>()
 
     val waitSecond: Int
