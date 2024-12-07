@@ -233,8 +233,10 @@ class WeiBi : Card {
                     it.isEnemy(player) &&
                     it.cards.any { card -> card.type in availableCardType }
             }.run {
-                filter { it!!.cards.any { card ->
-                    card.id in player.game!!.canWeiBiCardIds && card.type in availableCardType }
+                filter {
+                    it!!.cards.any { card ->
+                        card.id in player.game!!.canWeiBiCardIds && card.type in availableCardType
+                    }
                 }.ifEmpty {
                     filter { it!!.cards.any { card -> card.type in listOf(Jie_Huo, Wu_Dao, Diao_Bao) } }.ifEmpty { this }
                         .run { if (player.identity != Black) filter { it!!.identity != Black }.ifEmpty { this } else this }
