@@ -72,6 +72,7 @@ class FengYunBianHuan : Card {
         val resolveFunc = { _: Boolean ->
             ExecuteFengYunBianHuan(this@FengYunBianHuan, drawCards, players, fsm)
         }
+        drawCards.forEach { g.canWeiBiCardIds.add(it.id) }
         r.weiBiFailRate = 0
         g.resolve(ResolveCard(r, r, null, getOriginCard(), Feng_Yun_Bian_Huan, resolveFunc, fsm))
     }
@@ -181,6 +182,11 @@ class FengYunBianHuan : Card {
             } else {
                 var value = 0
                 var card: Card? = null
+                // 风云变幻选牌的情况下，因为都是明牌，不应该进行机器人打牌风格的波动
+                val coefficientA = r.coefficientA
+                val coefficientB = r.coefficientB
+                r.coefficientA = 1.0
+                r.coefficientB = 0
                 for (c in drawCards) {
                     !r.messageCards.any { it.hasSameColor(c) } || continue
                     val result = r.calculateMessageCardValue(mainPhaseIdle.whoseTurn, r, c)
@@ -189,6 +195,8 @@ class FengYunBianHuan : Card {
                         card = c
                     }
                 }
+                r.coefficientA = coefficientA
+                r.coefficientB = coefficientB
                 r.game!!.tryContinueResolveProtocol(r, fengYunBianHuanChooseCardTos {
                     if (card != null) {
                         cardId = card.id
@@ -218,22 +226,21 @@ class FengYunBianHuan : Card {
             !player.cannotPlayCard(Feng_Yun_Bian_Huan) || return false
             if (player.identity == Black) {
                 when (player.secretTask) {
-                    Disturber -> {}
-                    Collector, Mutator -> {
-                        val counts = CountColors(player.messageCards)
-                        var zeroColors = 0
-                        if (counts.red == 0) zeroColors++
-                        if (counts.blue == 0) zeroColors++
-                        if (counts.blue == 0) zeroColors++
-                        if (zeroColors < 2) return false
-                    }
+                    Collector, Mutator, Disturber ->
+                        if (!player.game!!.isEarly) return false
                     else -> return false
                 }
-            } else if (player.game!!.players.all {
-                    !it!!.alive ||
-                        it.identity != player.identity ||
-                        it.messageCards.any { c -> player.identity in c.colors }
-                }) return false
+            } else if (!player.game!!.isEarly) {
+                var score = 0
+                val alivePlayers = player.game!!.players.filterNotNull().filter { it.alive }
+                var curScore = alivePlayers.size
+                for (p in player.game!!.sortedFrom(alivePlayers, player.location)) {
+                    if (p.identity == player.identity) score += curScore
+                    else if (p.identity != Black) score -= curScore
+                    curScore--
+                }
+                score > 0 || return false
+            }
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
                 card.asCard(Feng_Yun_Bian_Huan).execute(player.game!!, player)

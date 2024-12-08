@@ -15,6 +15,9 @@ import org.apache.logging.log4j.kotlin.logger
 import kotlin.random.Random
 
 abstract class Player protected constructor() {
+    var coefficientA = Random.nextDouble(0.8, 1.2)
+    var coefficientB = Random.nextInt(-15, 15)
+
     @Volatile
     var game: Game? = null
     var playerName = ""

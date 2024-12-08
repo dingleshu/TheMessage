@@ -50,11 +50,18 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     val isEarly: Boolean
         get() = turn <= players.size
 
+    /** 威逼的明牌，回合末清空 */
+    val canWeiBiCardIds = ArrayList<Int>()
+
     val waitSecond: Int
         get() {
             val cnt = players.count { it is HumanPlayer }
             return when (cnt) {
-                1 -> Config.WaitSeconds * 2
+                1 -> {
+                    val humanPlayers = players.filterIsInstance<HumanPlayer>()
+                    if (humanPlayers[0].playerName == "唐乐林") Config.WaitSeconds * 4
+                    else Config.WaitSeconds * 2
+                }
                 2 -> Config.WaitSeconds
                 else -> (Config.WaitSeconds * (1 - 0.05 * cnt)).toInt()
             }
@@ -71,7 +78,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var mainPhaseAlreadyNotify = false
 
     fun setStartTimer() {
-        val delay = if (Config.IsGmEnable || players.count { it is HumanPlayer } <= 1) 0L else 5L
+        val delay = if (Config.IsGmEnable) 0L else 5L
         gameStartTimeout = GameExecutor.post(this, { start() }, delay, TimeUnit.SECONDS)
     }
 
@@ -244,7 +251,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
                 Statistics.addPlayerGameCount(playerGameResultList)
                 Statistics.calculateRankList()
                 QQPusher.push(this, declaredWinners, winners, addScoreMap, newScoreMap, humanPlayers.size > 1 ||
-                    humanPlayers[0].playerName == "半藏")
+                    humanPlayers[0].playerName == "半藏" ||
+                    humanPlayers[0].playerName == "唐乐林")
             }
             players.forEach { it!!.notifyWin(declaredWinners, winners, addScoreMap, newScoreMap) }
         }
