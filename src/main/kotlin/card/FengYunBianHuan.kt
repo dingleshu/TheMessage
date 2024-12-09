@@ -236,10 +236,10 @@ class FengYunBianHuan : Card {
                 var curScore = alivePlayers.size
                 for (p in player.game!!.sortedFrom(alivePlayers, player.location)) {
                     if (p.identity == player.identity) score += curScore
-                    else if (p.identity != Black) score -= curScore
+                    else score -= curScore
                     curScore--
                 }
-                score > 0 || return false
+                score >= 0 || return false
             }
             GameExecutor.post(player.game!!, {
                 convertCardSkill?.onConvert(player)
