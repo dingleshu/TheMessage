@@ -9,6 +9,7 @@ import com.fengsheng.protos.skillJieDaoShaRenAToc
 import com.fengsheng.protos.skillJieDaoShaRenATos
 import com.fengsheng.protos.skillJieDaoShaRenBToc
 import com.fengsheng.protos.skillJieDaoShaRenBTos
+import com.fengsheng.skill.SkillId.SOU_JI
 import com.google.protobuf.GeneratedMessage
 import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
@@ -191,27 +192,21 @@ class JieDaoShaRen : ActiveSkill {
         fun ai(e: FightPhaseIdle, skill: ActiveSkill): Boolean {
             val player = e.whoseFightTurn
             !player.roleFaceUp || return false
-            player.game!!.players.anyoneWillWinOrDie(e) || return false
-            val availableTargets = player.game!!.players.filter {
-                it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty()
-            }.ifEmpty { return false }
-//            val weights = availableTargets.map { it!! to it.cards.count(Black).toDouble() / it.cards.size }
-//            val totalWeight = weights.sumOf { it.second }
-//            var target = availableTargets.first()!!
-//            if (totalWeight > 0.0) { // 按权重随机
-//                var weight = Random.nextDouble(totalWeight)
-//                for ((p, w) in weights) {
-//                    if (weight < w) {
-//                        target = p
-//                        break
-//                    }
-//                    weight -= w
-//                }
-//            } else {
-            val target = availableTargets.random()!!
-//            }
-            GameExecutor.post(player.game!!, {
-                skill.executeProtocol(player.game!!, player, skillJieDaoShaRenATos {
+            val g = player.game!!
+            var target = g.players.find { // 明的全黑
+                it!!.alive && it.cards.isNotEmpty() && it.cards.all { c -> c.isBlack() && c.id in g.canWeiBiCardIds }
+            }
+            if (target == null) {
+                val liXing = g.players.find { it!!.alive && it.cards.isNotEmpty() && it.getSkillUseCount(SOU_JI) > 0 }
+                if (liXing != null && (liXing.isEnemy(player) || liXing.cards.all { it.isBlack() }))
+                    target = liXing // 发过技能的李醒，是敌人或者是全黑
+            }
+            if (target == null && g.players.anyoneWillWinOrDie(e)) { // 有人要赢了或者要死了，直接随机
+                target = g.players.filter { it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty() }.randomOrNull()
+            }
+            if (target == null) return false
+            GameExecutor.post(g, {
+                skill.executeProtocol(g, player, skillJieDaoShaRenATos {
                     targetPlayerId = player.getAlternativeLocation(target.location)
                 })
             }, 3, TimeUnit.SECONDS)
