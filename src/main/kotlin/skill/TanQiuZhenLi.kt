@@ -247,7 +247,7 @@ class TanQiuZhenLi : MainPhaseSkill() {
             GameExecutor.post(e.whoseTurn.game!!, {
                 skill.executeProtocol(e.whoseTurn.game!!, e.whoseTurn, skillTanQiuZhenLiATos {
                     targetPlayerId = e.whoseTurn.getAlternativeLocation(target.player.location)
-                    this.cardId = cardId
+                    cardId = target.card.id
                 })
             }, 3, TimeUnit.SECONDS)
             return true
