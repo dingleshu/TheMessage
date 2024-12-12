@@ -610,7 +610,8 @@ fun Player.calSendMessageCard(
             if (canLock && nextValue >= myValue) return nextValue.toDouble()
             val nextValue2 = nextPlayer.calculateMessageCardValue(whoseTurn, nextPlayer, card)
             val myValue2 = nextPlayer.calculateMessageCardValue(whoseTurn, me, card)
-            return (if (nextValue2 >= myValue2) nextValue else myValue).toDouble()
+            return if (nextValue2 >= myValue2) nextValue * 0.9 + myValue * 0.1
+            else myValue * 0.9 + nextValue * 0.1
         }
         while (true) {
             var m = currentPercent
