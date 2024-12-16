@@ -625,7 +625,7 @@ fun Player.calSendMessageCard(
         }
         return sum / n
     }
-    val notUp = game!!.isEarly && !isYuQinGuZong && identity != Black && !skills.any { it is LianLuo } &&
+    val notUp = game!!.isEarly && !isYuQinGuZong && identity != Black && (skills.any { it is LianLuo } ||
         availableCards.any { card ->
             !card.isPureBlack() &&
                 when (card.direction) {
@@ -633,7 +633,7 @@ fun Player.calSendMessageCard(
                     Right -> calAveValue(card, 0.7, Player::getNextRightAlivePlayer) >= 0
                     else -> false
                 }
-        }
+        })
     for (card in availableCards.sortCards(identity, true)) {
         val removedCard = if (isYuQinGuZong) deleteMessageCard(card.id) else null
         if (!notUp && (card.direction == Up || skills.any { it is LianLuo })) {
@@ -645,13 +645,13 @@ fun Player.calSendMessageCard(
                     result = SendMessageCardResult(card, target!!, Up, emptyList(), value)
                 }
             }
-        } else if (card.direction == Left) {
+        } else if (card.direction == Left || notUp && skills.any { it is LianLuo }) {
             val tmpValue = calAveValue(card, 0.7, Player::getNextLeftAlivePlayer)
             if (tmpValue > value) {
                 value = tmpValue
                 result = SendMessageCardResult(card, getNextLeftAlivePlayer(), Left, emptyList(), value)
             }
-        } else if (card.direction == Right) {
+        } else if (card.direction == Right || notUp && skills.any { it is LianLuo }) {
             val tmpValue = calAveValue(card, 0.7, Player::getNextRightAlivePlayer)
             if (tmpValue > value) {
                 value = tmpValue
