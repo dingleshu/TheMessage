@@ -6,8 +6,7 @@ import com.fengsheng.phase.MainPhaseIdle
 import com.fengsheng.phase.OnFinishResolveCard
 import com.fengsheng.phase.ResolveCard
 import com.fengsheng.protos.*
-import com.fengsheng.protos.Common.card_type.Feng_Yun_Bian_Huan
-import com.fengsheng.protos.Common.card_type.Wei_Bi
+import com.fengsheng.protos.Common.card_type.*
 import com.fengsheng.protos.Common.color
 import com.fengsheng.protos.Common.color.Black
 import com.fengsheng.protos.Common.direction
@@ -182,21 +181,23 @@ class FengYunBianHuan : Card {
             } else {
                 var value = 0
                 var card: Card? = null
-                // 风云变幻选牌的情况下，因为都是明牌，不应该进行机器人打牌风格的波动
-                val coefficientA = r.coefficientA
-                val coefficientB = r.coefficientB
-                r.coefficientA = 1.0
-                r.coefficientB = 0
-                for (c in drawCards) {
-                    !r.messageCards.any { it.hasSameColor(c) } || continue
-                    val result = r.calculateMessageCardValue(mainPhaseIdle.whoseTurn, r, c)
-                    if (result > value) {
-                        value = result
-                        card = c
+                if (r !== mainPhaseIdle.whoseTurn || r.cards.isNotEmpty()) {
+                    // 风云变幻选牌的情况下，因为都是明牌，不应该进行机器人打牌风格的波动
+                    val coefficientA = r.coefficientA
+                    val coefficientB = r.coefficientB
+                    r.coefficientA = 1.0
+                    r.coefficientB = 0
+                    for (c in drawCards) {
+                        !r.messageCards.any { it.hasSameColor(c) } || continue
+                        val result = r.calculateMessageCardValue(mainPhaseIdle.whoseTurn, r, c)
+                        if (result > value) {
+                            value = result
+                            card = c
+                        }
                     }
+                    r.coefficientA = coefficientA
+                    r.coefficientB = coefficientB
                 }
-                r.coefficientA = coefficientA
-                r.coefficientB = coefficientB
                 r.game!!.tryContinueResolveProtocol(r, fengYunBianHuanChooseCardTos {
                     if (card != null) {
                         cardId = card.id
@@ -204,8 +205,10 @@ class FengYunBianHuan : Card {
                     } else {
                         cardId =
                             if (r === mainPhaseIdle.whoseTurn) {
-                                drawCards.filter { it.type == Wei_Bi } // 自己回合优先拿威逼
-                                    .ifEmpty { drawCards.filterByRole(r.role) } // 没有威逼先按拿牌偏好
+                                drawCards.filter {
+                                    if (r.cards.isEmpty()) it.type == Ping_Heng // 无牌先平衡
+                                    else it.type == Wei_Bi // 有牌先威逼
+                                }.ifEmpty { drawCards.filterByRole(r.role) } // 没有威逼先按拿牌偏好
                                     .ifEmpty { drawCards } // 都没有就全随机
                             } else {
                                 drawCards.filterByRole(r.role) // 非自己回合按拿牌偏好

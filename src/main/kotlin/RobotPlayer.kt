@@ -30,6 +30,14 @@ class RobotPlayer : Player() {
     override fun notifyMainPhase(waitSecond: Int) {
         val fsm = game!!.fsm as MainPhaseIdle
         if (this !== fsm.whoseTurn) return
+        if (game!!.isEarly && !cannotPlayCard(Feng_Yun_Bian_Huan)) {
+            for (card in cards.sortCards(identity)) {
+                val (ok, convertCardSkill) = canUseCardTypes(Feng_Yun_Bian_Huan, card)
+                ok || continue
+                val ai = aiMainPhase[card.type] ?: continue
+                if (ai(fsm, card, convertCardSkill)) return
+            }
+        }
         for (skill in skills) {
             val ai = aiSkillMainPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as ActiveSkill)) return
@@ -48,7 +56,8 @@ class RobotPlayer : Player() {
                 }
             }
         }
-        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null || cards.size == 1 && cards.first().type == Ping_Heng) {
+        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null ||
+            cards.size == 1 && cards.first().type in listOf(Ping_Heng, Feng_Yun_Bian_Huan)) {
             val cardTypes =
                 if (findSkill(JI_SONG) == null && (findSkill(GUANG_FA_BAO) == null || roleFaceUp))
                     cardOrder.keys.sortedBy { cardOrder[it] }
