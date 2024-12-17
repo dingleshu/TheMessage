@@ -194,11 +194,12 @@ class JieDaoShaRen : ActiveSkill {
             !player.roleFaceUp || return false
             val g = player.game!!
             var target = g.players.find { // 明的全黑
-                it!!.alive && it.cards.isNotEmpty() && it.cards.all { c -> c.isBlack() && c.id in g.canWeiBiCardIds }
+                it!!.alive && it !== player && it.cards.isNotEmpty() &&
+                    it.cards.all { c -> c.isBlack() && c.id in g.canWeiBiCardIds }
             }
             if (target == null) {
                 val liXing = g.players.find { it!!.alive && it.cards.isNotEmpty() && it.getSkillUseCount(SOU_JI) > 0 }
-                if (liXing != null && (liXing.isEnemy(player) || liXing.cards.all { it.isBlack() }))
+                if (liXing != null && liXing !== player && (liXing.isEnemy(player) || liXing.cards.all { it.isBlack() }))
                     target = liXing // 发过技能的李醒，是敌人或者是全黑
             }
             if (target == null && g.players.anyoneWillWinOrDie(e)) { // 有人要赢了或者要死了，直接随机
