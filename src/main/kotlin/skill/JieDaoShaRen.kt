@@ -195,7 +195,7 @@ class JieDaoShaRen : ActiveSkill {
             val g = player.game!!
             var target = g.players.find { // 明的全黑
                 it!!.alive && it !== player && it.cards.isNotEmpty() &&
-                    it.cards.all { c -> c.isBlack() && c.id in g.canWeiBiCardIds }
+                    it.cards.all { c -> c.isBlack() && c.id in player.canWeiBiCardIds }
             }
             if (target == null) {
                 val liXing = g.players.find { it!!.alive && it.cards.isNotEmpty() && it.getSkillUseCount(SOU_JI) > 0 }

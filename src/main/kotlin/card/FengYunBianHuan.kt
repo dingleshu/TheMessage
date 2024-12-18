@@ -71,8 +71,6 @@ class FengYunBianHuan : Card {
         val resolveFunc = { _: Boolean ->
             ExecuteFengYunBianHuan(this@FengYunBianHuan, drawCards, players, fsm)
         }
-        drawCards.forEach { g.canWeiBiCardIds.add(it.id) }
-        r.weiBiFailRate = 0
         g.resolve(ResolveCard(r, r, null, getOriginCard(), Feng_Yun_Bian_Huan, resolveFunc, fsm))
     }
 
@@ -156,6 +154,7 @@ class FengYunBianHuan : Card {
                 player.messageCards.add(chooseCard)
             } else {
                 logger.info("${player}把${chooseCard}加入手牌")
+                player.game!!.players.forEach { it!!.canWeiBiCardIds.add(chooseCard.id) }
                 player.cards.add(chooseCard)
             }
             player.game!!.players.send {

@@ -81,8 +81,7 @@ class HuoXin : MainPhaseSkill() {
             g.continueResolve()
             return
         }
-        target.cards.forEach { g.canWeiBiCardIds.add(it.id) }
-        r.weiBiFailRate = 0
+        target.cards.forEach { r.canWeiBiCardIds.add(it.id) }
         g.resolve(ExecuteHuoXin(g.fsm!!, r, target, showCards[0], waitingSecond))
     }
 
