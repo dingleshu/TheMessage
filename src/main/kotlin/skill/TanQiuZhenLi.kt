@@ -5,10 +5,13 @@ import com.fengsheng.RobotPlayer.Companion.sortCards
 import com.fengsheng.card.Card
 import com.fengsheng.card.PlayerAndCard
 import com.fengsheng.phase.MainPhaseIdle
-import com.fengsheng.protos.*
 import com.fengsheng.protos.Common.color.*
 import com.fengsheng.protos.Role.skill_tan_qiu_zhen_li_a_tos
 import com.fengsheng.protos.Role.skill_tan_qiu_zhen_li_b_tos
+import com.fengsheng.protos.skillTanQiuZhenLiAToc
+import com.fengsheng.protos.skillTanQiuZhenLiATos
+import com.fengsheng.protos.skillTanQiuZhenLiBToc
+import com.fengsheng.protos.skillTanQiuZhenLiBTos
 import com.google.protobuf.GeneratedMessage
 import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
@@ -210,12 +213,14 @@ class TanQiuZhenLi : MainPhaseSkill() {
                     !player.checkThreeSameMessageCard(c) || continue
                     val v1 = player.calculateRemoveCardValue(player, p, c)
                     val v2 = player.calculateMessageCardValue(player, player, c)
+                    val index = p.messageCards.indexOfFirst { card -> c.id == card.id }
+                    if (index >= 0) p.messageCards.removeAt(index)
                     player.messageCards.add(c)
                     val blackHandCard = p.cards.sortCards(p.identity, true).find { it.isPureBlack() }
                     var vOther3 = 0
                     if (blackHandCard != null)
                         vOther3 = -10 + p.calculateMessageCardValue(player, player, blackHandCard)
-                    val blackMessageCard = p.messageCards.find { it.isPureBlack() }
+                    val blackMessageCard = p.messageCards.find { it.id != c.id && it.isPureBlack() }
                     var vOther4 = 0
                     if (blackMessageCard != null)
                         vOther4 = p.calculateRemoveCardValue(player, p, blackMessageCard) +
@@ -241,6 +246,7 @@ class TanQiuZhenLi : MainPhaseSkill() {
                         }
                     }
                     player.messageCards.removeLast()
+                    if (index >= 0) p.messageCards.add(index, c)
                 }
             }
             if (target == null) return false
