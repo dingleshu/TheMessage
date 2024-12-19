@@ -3,6 +3,7 @@ package com.fengsheng.skill
 import com.fengsheng.*
 import com.fengsheng.card.Card
 import com.fengsheng.phase.FightPhaseIdle
+import com.fengsheng.protos.Common.color.Black
 import com.fengsheng.protos.Role.skill_jie_dao_sha_ren_a_tos
 import com.fengsheng.protos.Role.skill_jie_dao_sha_ren_b_tos
 import com.fengsheng.protos.skillJieDaoShaRenAToc
@@ -202,8 +203,12 @@ class JieDaoShaRen : ActiveSkill {
                 if (liXing != null && liXing !== player && (liXing.isEnemy(player) || liXing.cards.all { it.isBlack() }))
                     target = liXing // 发过技能的李醒，是敌人或者是全黑
             }
-            if (target == null && g.players.anyoneWillWinOrDie(e)) { // 有人要赢了或者要死了，直接随机
-                target = g.players.filter { it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty() }.randomOrNull()
+            val blackRate = g.deck.colorRates.filterIndexed { i, _ -> i / 3 == Black.number || i % 3 == Black.number }.sum()
+            if (target == null && g.players.anyoneWillWinOrDie(e)) { // 有人要赢了或者要死了，按照已知黑牌数量顺序来
+                target = g.players.filter { it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty() }.maxBy {
+                    (it!!.cards.count { c -> c.isBlack() && c.id in player.canWeiBiCardIds } +
+                        it.cards.count { c -> c.id !in player.canWeiBiCardIds } * blackRate) / it.cards.size
+                }
             }
             if (target == null) return false
             GameExecutor.post(g, {
