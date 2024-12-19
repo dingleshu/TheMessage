@@ -138,7 +138,7 @@ class GuiZha : MainPhaseSkill() {
                     it !== player && it!!.alive &&
                         (!it.roleFaceUp || !it.skills.any { s -> s is ChengFu || s is ShouKouRuPing || s is CunBuBuRang }) &&
                         it.isEnemy(player) &&
-                        it.cards.any { card -> card.type in availableCardType }
+                        it.cards.any { card -> card.id !in player.canWeiBiCardIds || card.type in WeiBi.availableCardType }
                 }.run {
                     filter {
                         it!!.cards.any { card ->
