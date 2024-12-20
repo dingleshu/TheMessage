@@ -205,7 +205,7 @@ class JieDaoShaRen : ActiveSkill {
             }
             val blackRate = g.deck.colorRates.filterIndexed { i, _ -> i / 3 == Black.number || i % 3 == Black.number }.sum()
             if (target == null && g.players.anyoneWillWinOrDie(e)) { // 有人要赢了或者要死了，按照已知黑牌数量顺序来
-                target = g.players.filter { it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty() }.maxBy {
+                target = g.players.filter { it!!.alive && it.isEnemy(player) && it.cards.isNotEmpty() }.maxByOrNull {
                     (it!!.cards.count { c -> c.isBlack() && c.id in player.canWeiBiCardIds } +
                         it.cards.count { c -> c.id !in player.canWeiBiCardIds } * blackRate) / it.cards.size
                 }
