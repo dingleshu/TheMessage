@@ -499,7 +499,7 @@ fun Player.calculateMessageCardValue(
         if (secretTask == Disturber && this != inFrontOfWhom) {
             val count = inFrontOfWhom.messageCards.countTrueCard()
             if (inFrontOfWhom.willDie(colors))
-                value += (2 - count) * 5
+                value += ((2 - count) * 5).coerceAtLeast(0)
             else if (count < 2 && (Red in colors || Blue in colors))
                 value += 5
         }
