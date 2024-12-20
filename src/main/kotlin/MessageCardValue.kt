@@ -326,7 +326,7 @@ fun Player.calculateMessageCardValue(
                 addScore(sender, 10)
             }
         }
-        if (inFrontOfWhom.skills.any { it is MingEr }) { // 老鳖【明饵】
+        if (sender.skills.any { it is MingEr }) { // 老鳖【明饵】
             if (colors.any { it != Black }) {
                 addScore(sender, 10)
                 addScore(inFrontOfWhom, 10)
