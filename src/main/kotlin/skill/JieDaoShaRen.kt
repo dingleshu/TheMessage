@@ -109,6 +109,7 @@ class JieDaoShaRen : ActiveSkill {
                 }
             }
             if (!card.isBlack()) {
+                r.game!!.players.forEach { it!!.canWeiBiCardIds.add(card.id) }
                 r.draw(1)
                 return ResolveResult(fsm.copy(whoseFightTurn = fsm.inFrontOfWhom), true)
             }

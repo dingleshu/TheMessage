@@ -183,6 +183,9 @@ class DuiZhengXiaYao : ActiveSkill {
         override fun resolve(): ResolveResult? {
             logger.info("${r}展示了${cards.joinToString()}")
             val g = r.game!!
+            cards.forEach { c ->
+                g.players.forEach { it!!.canWeiBiCardIds.add(c.id) }
+            }
             g.players.send { p ->
                 skillDuiZhengXiaYaoBToc {
                     playerId = p.getAlternativeLocation(r.location)

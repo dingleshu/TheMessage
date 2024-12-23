@@ -68,6 +68,7 @@ class SouJi : ActiveSkill {
         override fun resolve(): ResolveResult? {
             val g = r.game!!
             logger.info("${r}对${target}发动了[搜缉]")
+            target.cards.forEach { r.canWeiBiCardIds.add(it.id) }
             g.players.send { p ->
                 skillSouJiAToc {
                     playerId = p.getAlternativeLocation(r.location)

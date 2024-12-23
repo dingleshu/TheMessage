@@ -15,7 +15,7 @@ import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
 
 /**
- * 孙守謨技能【详尽思索】：每当情报传出时，你可以指定一名角色，若最后情报被该角色接收，你摸两张牌。
+ * 孙守謨技能【详尽思索】：每当情报传出时，你可以指定一名角色，若最后情报被该角色接收，你摸一张牌。
  */
 class XiangJinSiSuo : TriggeredSkill {
     override val skillId = SkillId.XIANG_JIN_SI_SUO

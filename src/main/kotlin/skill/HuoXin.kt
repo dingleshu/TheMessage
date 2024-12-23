@@ -145,6 +145,7 @@ class HuoXin : MainPhaseSkill() {
             if (joinIntoHand) {
                 logger.info("${r}弃掉了${target}的$card，并加入自己的手牌")
                 r.cards.add(card)
+                r.game!!.players.forEach { it!!.canWeiBiCardIds.add(card.id) }
             } else {
                 logger.info("${r}弃掉了${target}的$card")
                 r.game!!.deck.discard(card)
