@@ -105,6 +105,8 @@ class ShiTan : Card {
             get() = fsm.whoseTurn
 
         override fun resolve(): ResolveResult? {
+            r.coefficientA = (r.coefficientA + 1) / 2
+            r.coefficientB = (r.coefficientB + 1) / 2
             r.game!!.players.send { p ->
                 showShiTanToc {
                     playerId = p.getAlternativeLocation(r.location)

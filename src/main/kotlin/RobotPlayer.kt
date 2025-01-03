@@ -136,11 +136,17 @@ class RobotPlayer : Player() {
             }
         }
         GameExecutor.post(game!!, {
+            val coefficientA = this.coefficientA
+            val coefficientB = this.coefficientB
             val receive = fsm.mustReceiveMessage() ||
                 // 如果必须接收，则接收
                 !fsm.cannotReceiveMessage() &&
                 // 如果不能接收，则不接收
                 run {
+                    if (fsm.isMessageCardFaceUp) {
+                        this.coefficientA = 1.0
+                        this.coefficientB = 0
+                    }
                     val myValue = // 自己接的收益
                         calculateMessageCardValue(fsm.whoseTurn, this, fsm.messageCard, sender = fsm.sender)
                     val nextPlayer =
@@ -174,6 +180,11 @@ class RobotPlayer : Player() {
                         if (lockValue < myValue) return@run true // 被锁的队友收益小于自己就接
                     }
                     false // 其它情况都不接
+                }.apply {
+                    if (fsm.isMessageCardFaceUp) {
+                        this@RobotPlayer.coefficientA = coefficientA
+                        this@RobotPlayer.coefficientB = coefficientB
+                    }
                 }
             game!!.resolve(
                 if (receive)

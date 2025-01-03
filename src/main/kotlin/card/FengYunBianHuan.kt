@@ -152,6 +152,12 @@ class FengYunBianHuan : Card {
             if (message.asMessageCard) {
                 logger.info("${player}把${chooseCard}置入情报区")
                 player.messageCards.add(chooseCard)
+                for (p in player.game!!.players) {
+                    if (p!!.alive && p.isPartner(player)) {
+                        p.coefficientA = (p.coefficientA + 1) / 2
+                        p.coefficientB = (p.coefficientB + 1) / 2
+                    }
+                }
             } else {
                 logger.info("${player}把${chooseCard}加入手牌")
                 player.game!!.players.forEach { it!!.canWeiBiCardIds.add(chooseCard.id) }

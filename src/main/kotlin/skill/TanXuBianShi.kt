@@ -150,6 +150,8 @@ class TanXuBianShi : MainPhaseSkill() {
             r.cards.add(card)
             logger.info("${target}给了${r}$card")
             target.canWeiBiCardIds.add(card.id)
+            r.coefficientA = (r.coefficientA + 1) / 2
+            r.coefficientB = (r.coefficientB + 1) / 2
             g.players.send { p ->
                 skillTanXuBianShiBToc {
                     playerId = p.getAlternativeLocation(r.location)
