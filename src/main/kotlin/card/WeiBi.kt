@@ -233,7 +233,13 @@ class WeiBi : Card {
             }.run {
                 filter {
                     it!!.cards.any { card ->
-                        card.id in player.canWeiBiCardIds && card.type in availableCardType
+                        card.id in player.canWeiBiCardIds && card.type in listOf(Jie_Huo, Diao_Bao, Wu_Dao)
+                    }
+                }.ifEmpty {
+                    filter {
+                        it!!.cards.any { card ->
+                            card.id in player.canWeiBiCardIds && card.type in availableCardType
+                        }
                     }
                 }.ifEmpty {
                     if (player.identity != Black) filter { it!!.identity != Black }.ifEmpty { this } else this
