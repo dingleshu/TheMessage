@@ -102,7 +102,7 @@ class PoYi : Card {
                 player.sendErrorMessage("你不是破译的使用者")
                 return null
             }
-            if (sendPhase.isMessageCardFaceUp) {
+            if (message.show && sendPhase.isMessageCardFaceUp) {
                 logger.error("情报已经被翻开了，不能再次翻开")
                 player.sendErrorMessage("情报已经被翻开了，不能再次翻开")
                 return null
