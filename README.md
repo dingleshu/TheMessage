@@ -159,6 +159,19 @@ push.push_qq_groups=12345678
 + distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.7-bin.zip
 ```
 
+### maven镜像
+
+如果依赖库下载太慢，可以修改`build.gradle.kts`，自行使用下载较快的镜像
+
+```diff
++ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+repositories {
++   maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
+    mavenCentral()
+}
+```
+
 ### IDEA问题
 
 如遇IDEA提示“代码洞察功能不可用”，是因为role.proto生成的协议文件太大导致的，在帮助菜单中编辑一下IDEA的自定义属性`idea.properties`
