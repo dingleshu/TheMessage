@@ -1,11 +1,11 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    kotlin("jvm") version "2.0.0"
+    kotlin("jvm") version "2.1.0"
     application
     idea
     id("com.google.protobuf") version "0.9.4"
-    id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.2"
 }
 
 group = "com.fengsheng"
@@ -19,14 +19,14 @@ dependencies {
     testImplementation("junit:junit:4.10")
     implementation("com.typesafe.akka:akka-actor_2.13:2.8.5")
     implementation("io.netty:netty-all:4.1.108.Final")
-    implementation("io.ktor:ktor-server-netty:2.3.12")
-    implementation("io.ktor:ktor-server-core:2.3.12")
+    implementation("io.ktor:ktor-server-netty:3.0.3")
+    implementation("io.ktor:ktor-server-core:3.0.3")
     implementation("com.google.protobuf:protobuf-java-util:4.26.0")
     implementation("com.google.protobuf:protobuf-kotlin:4.26.0")
     implementation("org.apache.logging.log4j:log4j-api:2.23.1")
     implementation("org.apache.logging.log4j:log4j-api-kotlin:1.4.0")
     implementation("org.apache.logging.log4j:log4j-core:2.23.1")
-    implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.0")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("com.google.code.gson:gson:2.10.1")
