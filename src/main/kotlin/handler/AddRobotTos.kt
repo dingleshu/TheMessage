@@ -25,6 +25,13 @@ class AddRobotTos : AbstractProtoHandler<Fengsheng.add_robot_tos>() {
 //                }
 //            }
             val humanCount = r.game!!.players.count { it is HumanPlayer }
+            if (humanCount > 1) {
+                val leftTime = r.game!!.lastJoinTime + 10000 - System.currentTimeMillis()
+                if (leftTime > 0) {
+                    r.sendErrorMessage("${leftTime / 1000 + 1}秒后才能增加机器人")
+                    return
+                }
+            }
             if (humanCount <= 1 && emptyPosition == 1) {
                 if (Statistics.getEnergy(r.playerName) <= 0) {
                     r.sendErrorMessage("""你的精力不足，不能进行人机局。你可以在群里输入"精力系统"了解。""")

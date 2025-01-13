@@ -30,13 +30,21 @@ class RobotPlayer : Player() {
     override fun notifyMainPhase(waitSecond: Int) {
         val fsm = game!!.fsm as MainPhaseIdle
         if (this !== fsm.whoseTurn) return
+        if (game!!.isEarly && !cannotPlayCard(Feng_Yun_Bian_Huan)) {
+            for (card in cards.sortCards(identity)) {
+                val (ok, convertCardSkill) = canUseCardTypes(Feng_Yun_Bian_Huan, card)
+                ok || continue
+                val ai = aiMainPhase[card.type] ?: continue
+                if (ai(fsm, card, convertCardSkill)) return
+            }
+        }
         for (skill in skills) {
             val ai = aiSkillMainPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as ActiveSkill)) return
         }
         if (!Config.IsGmEnable && game!!.players.count { it is HumanPlayer } == 1) {
             val human = game!!.players.first { it is HumanPlayer }!!
-            if (isEnemy(human)) { // 对于低分的新人，敌方机器人可能不出牌
+            if (isEnemy(human) && !(cards.size == 1 && cards.first().type == Ping_Heng)) { // 对于低分的新人，敌方机器人可能不出牌
                 val info = Statistics.getPlayerInfo(human.playerName)
                 if (info != null) {
                     val score = info.score
@@ -48,7 +56,8 @@ class RobotPlayer : Player() {
                 }
             }
         }
-        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null || cards.size == 1 && cards.first().type == Ping_Heng) {
+        if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null ||
+            cards.size == 1 && cards.first().type in listOf(Ping_Heng, Feng_Yun_Bian_Huan)) {
             val cardTypes =
                 if (findSkill(JI_SONG) == null && (findSkill(GUANG_FA_BAO) == null || roleFaceUp))
                     cardOrder.keys.sortedBy { cardOrder[it] }
@@ -127,11 +136,17 @@ class RobotPlayer : Player() {
             }
         }
         GameExecutor.post(game!!, {
+            val coefficientA = this.coefficientA
+            val coefficientB = this.coefficientB
             val receive = fsm.mustReceiveMessage() ||
                 // 如果必须接收，则接收
                 !fsm.cannotReceiveMessage() &&
                 // 如果不能接收，则不接收
                 run {
+                    if (fsm.isMessageCardFaceUp) {
+                        this.coefficientA = 1.0
+                        this.coefficientB = 0
+                    }
                     val myValue = // 自己接的收益
                         calculateMessageCardValue(fsm.whoseTurn, this, fsm.messageCard, sender = fsm.sender)
                     val nextPlayer =
@@ -165,6 +180,11 @@ class RobotPlayer : Player() {
                         if (lockValue < myValue) return@run true // 被锁的队友收益小于自己就接
                     }
                     false // 其它情况都不接
+                }.apply {
+                    if (fsm.isMessageCardFaceUp) {
+                        this@RobotPlayer.coefficientA = coefficientA
+                        this@RobotPlayer.coefficientB = coefficientB
+                    }
                 }
             game!!.resolve(
                 if (receive)
@@ -212,7 +232,7 @@ class RobotPlayer : Player() {
             this === fsm.whoseTurn ||
             isPartnerOrSelf(fsm.inFrontOfWhom) &&
             fsm.inFrontOfWhom.willDie(fsm.messageCard) ||
-            calculateMessageCardValue(fsm.whoseTurn, fsm.inFrontOfWhom, fsm.messageCard, sender = fsm.sender) <= -110) {
+            calculateMessageCardValue(fsm.whoseTurn, fsm.inFrontOfWhom, fsm.messageCard, sender = fsm.sender) <= -135) {
             val result = calFightPhase(fsm)
             if (result != null && result.deltaValue > 11) {
                 var actualDelay = 3L

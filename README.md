@@ -142,12 +142,6 @@ push.push_qq_groups=12345678
 
 *纯人机局不会推送，至少要有2名真人玩家时才会推送。*
 
-## 关于文件服务器
-
-提供了一个文件服务器端口，供客户端下载资源文件，`file_server_port`字段配成0就是不启用文件服务器。
-
-启动后，访问`http://ip:port/`即可看到`files`文件夹（事先自行创建一个`files`文件夹）下的文件列表，点击文件名即可下载。（目前暂不支持嵌套文件夹）
-
 ## 开发相关
 
 ### gradle镜像
@@ -157,6 +151,19 @@ push.push_qq_groups=12345678
 ```diff
 - distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
 + distributionUrl=https\://mirrors.cloud.tencent.com/gradle/gradle-8.7-bin.zip
+```
+
+### maven镜像
+
+如果依赖库下载太慢，可以修改`build.gradle.kts`，自行使用下载较快的镜像
+
+```diff
++ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+repositories {
++   maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
+    mavenCentral()
+}
 ```
 
 ### IDEA问题

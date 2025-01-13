@@ -326,7 +326,7 @@ fun Player.calculateMessageCardValue(
                 addScore(sender, 10)
             }
         }
-        if (inFrontOfWhom.skills.any { it is MingEr }) { // 老鳖【明饵】
+        if (sender.skills.any { it is MingEr }) { // 老鳖【明饵】
             if (colors.any { it != Black }) {
                 addScore(sender, 10)
                 addScore(inFrontOfWhom, 10)
@@ -499,7 +499,7 @@ fun Player.calculateMessageCardValue(
         if (secretTask == Disturber && this != inFrontOfWhom) {
             val count = inFrontOfWhom.messageCards.countTrueCard()
             if (inFrontOfWhom.willDie(colors))
-                value += (2 - count) * 5
+                value += ((2 - count) * 5).coerceAtLeast(0)
             else if (count < 2 && (Red in colors || Blue in colors))
                 value += 5
         }
@@ -610,7 +610,8 @@ fun Player.calSendMessageCard(
             if (canLock && nextValue >= myValue) return nextValue.toDouble()
             val nextValue2 = nextPlayer.calculateMessageCardValue(whoseTurn, nextPlayer, card)
             val myValue2 = nextPlayer.calculateMessageCardValue(whoseTurn, me, card)
-            return (if (nextValue2 >= myValue2) nextValue else myValue).toDouble()
+            return if (nextValue2 >= myValue2) nextValue * 0.9 + myValue * 0.1
+            else myValue * 0.9 + nextValue * 0.1
         }
         while (true) {
             var m = currentPercent
@@ -624,7 +625,7 @@ fun Player.calSendMessageCard(
         }
         return sum / n
     }
-    val notUp = game!!.isEarly && !isYuQinGuZong && identity != Black && !skills.any { it is LianLuo } &&
+    val notUp = game!!.isEarly && !isYuQinGuZong && identity != Black && (skills.any { it is LianLuo } ||
         availableCards.any { card ->
             !card.isPureBlack() &&
                 when (card.direction) {
@@ -632,7 +633,7 @@ fun Player.calSendMessageCard(
                     Right -> calAveValue(card, 0.7, Player::getNextRightAlivePlayer) >= 0
                     else -> false
                 }
-        }
+        })
     for (card in availableCards.sortCards(identity, true)) {
         val removedCard = if (isYuQinGuZong) deleteMessageCard(card.id) else null
         if (!notUp && (card.direction == Up || skills.any { it is LianLuo })) {
@@ -644,13 +645,13 @@ fun Player.calSendMessageCard(
                     result = SendMessageCardResult(card, target!!, Up, emptyList(), value)
                 }
             }
-        } else if (card.direction == Left) {
+        } else if (card.direction == Left || notUp && skills.any { it is LianLuo }) {
             val tmpValue = calAveValue(card, 0.7, Player::getNextLeftAlivePlayer)
             if (tmpValue > value) {
                 value = tmpValue
                 result = SendMessageCardResult(card, getNextLeftAlivePlayer(), Left, emptyList(), value)
             }
-        } else if (card.direction == Right) {
+        } else if (card.direction == Right || notUp && skills.any { it is LianLuo }) {
             val tmpValue = calAveValue(card, 0.7, Player::getNextRightAlivePlayer)
             if (tmpValue > value) {
                 value = tmpValue

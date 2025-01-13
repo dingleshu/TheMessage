@@ -180,6 +180,9 @@ data class WaitForSelectRole(val game: Game, val options: List<MutableList<RoleS
             han_mei,
             lian_yuan,
             a_fu_luo_la,
+            sp_lian_yuan,
+            shang_yu,
+            bian_yun_jiang
         )
     }
 }

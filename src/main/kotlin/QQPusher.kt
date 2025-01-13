@@ -105,11 +105,11 @@ object QQPusher {
                 map[name] = "$roleName,$identity,$result,$rank,$newScore($addScoreStr)"
         }
         val text = lines.joinToString(separator = "\n")
-        val at = runBlocking {
+        val at = if (pushToQQ) runBlocking {
             mu.withLock {
                 notifyQueueOnEnd.toLongArray().apply { notifyQueueOnEnd.clear() }
             }
-        }
+        } else LongArray(0)
         @OptIn(DelicateCoroutinesApi::class)
         GlobalScope.launch {
             try {

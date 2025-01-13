@@ -34,6 +34,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
 
     private var gameIdleTimeout: Timeout? = null
 
+    var lastJoinTime = 0L
+
     @Volatile
     var isStarted = false
 
@@ -49,9 +51,6 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var playTime: Long = 0
     val isEarly: Boolean
         get() = turn <= players.size
-
-    /** 威逼的明牌，回合末清空 */
-    val canWeiBiCardIds = ArrayList<Int>()
 
     val waitSecond: Int
         get() {
@@ -78,7 +77,11 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var mainPhaseAlreadyNotify = false
 
     fun setStartTimer() {
-        val delay = if (Config.IsGmEnable) 0L else 5L
+        val delay = when {
+            Config.IsGmEnable -> 0L
+            players.count { it is HumanPlayer } <= 1 -> 5L
+            else -> 10L
+        }
         gameStartTimeout = GameExecutor.post(this, { start() }, delay, TimeUnit.SECONDS)
     }
 
@@ -101,6 +104,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         }
         players = players.toMutableList().apply { set(index, player) }
         player.location = index
+        if (player is HumanPlayer)
+            lastJoinTime = System.currentTimeMillis()
         val unready = players.count { it == null }
         val msg = joinRoomToc {
             name = player.playerName

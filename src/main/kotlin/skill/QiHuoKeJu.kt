@@ -70,7 +70,8 @@ class QiHuoKeJu : TriggeredSkill {
                 return null
             }
             r.incrSeq()
-            logger.info("${r}发动了[奇货可居]")
+            logger.info("${r}发动了[奇货可居]，将${card}收入手牌")
+            g.players.forEach { it!!.canWeiBiCardIds.add(card.id) }
             r.deleteMessageCard(card.id)
             r.cards.add(card)
             g.players.send {
