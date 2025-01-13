@@ -16,16 +16,16 @@ repositories {
 }
 
 dependencies {
-    testImplementation("junit:junit:4.10")
+    testImplementation("junit:junit:4.13.2")
     implementation("com.typesafe.akka:akka-actor_2.13:2.8.5")
     implementation("io.netty:netty-all:4.1.108.Final")
     implementation("io.ktor:ktor-server-netty:3.0.3")
     implementation("io.ktor:ktor-server-core:3.0.3")
-    implementation("com.google.protobuf:protobuf-java-util:4.26.0")
-    implementation("com.google.protobuf:protobuf-kotlin:4.26.0")
-    implementation("org.apache.logging.log4j:log4j-api:2.23.1")
-    implementation("org.apache.logging.log4j:log4j-api-kotlin:1.4.0")
-    implementation("org.apache.logging.log4j:log4j-core:2.23.1")
+    implementation("com.google.protobuf:protobuf-java-util:4.29.3")
+    implementation("com.google.protobuf:protobuf-kotlin:4.29.3")
+    implementation("org.apache.logging.log4j:log4j-api:2.24.3")
+    implementation("org.apache.logging.log4j:log4j-api-kotlin:1.5.0")
+    implementation("org.apache.logging.log4j:log4j-core:2.24.3")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
@@ -36,7 +36,7 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.26.0"
+        artifact = "com.google.protobuf:protoc:4.29.3"
     }
 
     generateProtoTasks {
