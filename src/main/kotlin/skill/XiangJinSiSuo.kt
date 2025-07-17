@@ -2,8 +2,7 @@ package com.fengsheng.skill
 
 import com.fengsheng.*
 import com.fengsheng.phase.ReceivePhaseIdle
-import com.fengsheng.protos.Common.card_type.Jie_Huo
-import com.fengsheng.protos.Common.card_type.Wu_Dao
+import com.fengsheng.protos.Common.card_type.*
 import com.fengsheng.protos.Common.direction.Up
 import com.fengsheng.protos.Role.skill_xiang_jin_si_suo_a_tos
 import com.fengsheng.protos.skillWaitForXiangJinSiSuoToc
@@ -15,7 +14,7 @@ import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
 
 /**
- * 孙守謨技能【详尽思索】：每当情报传出时，你可以指定一名角色。若如此做，你本回合不能使用【截获】【误导】。若最后情报被该角色接收，你摸一张牌。
+ * 孙守謨技能【详尽思索】：每当情报传出时，你可以指定一名角色。若本回合该角色接收了情报，且你本回合没有使用【截获】【误导】【调包】，你摸一张牌。
  */
 class XiangJinSiSuo : TriggeredSkill {
     override val skillId = SkillId.XIANG_JIN_SI_SUO
@@ -27,7 +26,7 @@ class XiangJinSiSuo : TriggeredSkill {
         return ResolveResult(ExecuteXiangJinSiSuoA(g.fsm!!, event, askWhom), true)
     }
 
-    private data class ExecuteXiangJinSiSuoA(val fsm: Fsm, val event: SendCardEvent, val r: Player) : WaitingFsm {
+    private class ExecuteXiangJinSiSuoA(val fsm: Fsm, val event: SendCardEvent, val r: Player) : WaitingFsm {
         override val whoseTurn: Player
             get() = fsm.whoseTurn
 
@@ -57,23 +56,12 @@ class XiangJinSiSuo : TriggeredSkill {
                         val whoseTurn = event.whoseTurn
                         val sender = event.sender
                         val target = event.targetPlayer
-                        if (sender.isEnemy(r) && sender.willWin(whoseTurn, sender, event.messageCard))
-                            return@skillXiangJinSiSuoATos
-                        if (target.isEnemy(r) && target.willWin(whoseTurn, target, event.messageCard))
-                            return@skillXiangJinSiSuoATos
                         val availablePlayers = arrayListOf(target)
                         if (event.dir == Up && !event.lockedPlayers.any { it === target }) {
                             val v1 = target.calculateMessageCardValue(whoseTurn, target, event.messageCard, sender = sender)
                             val v2 = target.calculateMessageCardValue(whoseTurn, sender, event.messageCard, sender = sender)
                             if (v1 < v2)
                                 availablePlayers[0] = sender
-                        }
-                        if (!r.cannotPlayCard(Jie_Huo) && r.cards.any { r.canUseCardTypes(Jie_Huo, it).first }) {
-                            availablePlayers.add(r)
-                        }
-                        if (!r.cannotPlayCard(Wu_Dao) && r.cards.any { r.canUseCardTypes(Wu_Dao, it).first }) {
-                            availablePlayers.add(availablePlayers[0].getNextLeftAlivePlayer())
-                            availablePlayers.add(availablePlayers[0].getNextRightAlivePlayer())
                         }
                         var v = Int.MIN_VALUE
                         var bestTarget = availablePlayers[0]
@@ -85,8 +73,6 @@ class XiangJinSiSuo : TriggeredSkill {
                                 bestTarget = t
                             }
                         }
-                        if (bestTarget !== sender && bestTarget !== target)
-                            return@skillXiangJinSiSuoATos
                         enable = true
                         targetPlayerId = r.getAlternativeLocation(bestTarget.location)
                     })
@@ -134,7 +120,6 @@ class XiangJinSiSuo : TriggeredSkill {
             }
             r.incrSeq()
             r.skills += XiangJinSiSuo2(target)
-            r.skills += CannotPlayCard(listOf(Jie_Huo, Wu_Dao))
             logger.info("${r}发动了[详尽思索]，指定了$target")
             r.game!!.players.send {
                 skillXiangJinSiSuoAToc {
@@ -148,7 +133,7 @@ class XiangJinSiSuo : TriggeredSkill {
     }
 
     private class XiangJinSiSuo2(val target: Player) : TriggeredSkill, OneTurnSkill {
-        override val skillId = SkillId.UNKNOWN
+        override val skillId = SkillId.XIANG_JIN_SI_SUO2
 
         override val isInitialSkill = false
 
@@ -156,6 +141,7 @@ class XiangJinSiSuo : TriggeredSkill {
             val fsm = g.fsm as? ReceivePhaseIdle ?: return null
             target === fsm.inFrontOfWhom || return null
             askWhom.alive || return null
+            listOf(Jie_Huo, Wu_Dao, Diao_Bao).all { it !in askWhom.useCardThisTurn } || return null
             askWhom.getSkillUseCount(skillId) == 0 || return null
             askWhom.addSkillUseCount(skillId)
             logger.info("[详尽思索]命中")

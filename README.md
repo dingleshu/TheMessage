@@ -7,6 +7,12 @@
 [![](https://img.shields.io/github/contributors/CuteReimu/TheMessage)](https://github.com/CuteReimu/TheMessage/graphs/contributors "贡献者")
 [![](https://img.shields.io/github/license/CuteReimu/TheMessage)](https://github.com/CuteReimu/TheMessage/blob/kotlin/LICENSE "许可协议")
 
+**如果你非常想为本项目做贡献，但又不知道从哪里入手，可以尝试解决[这些问题](https://github.com/CuteReimu/TheMessage/contribute)**
+
+**你也可以[加入交流群](https://qm.qq.com/q/X7bBZ5qGiq)**
+
+**如果想要了解游戏规则，可以跳转到[fengsheng-doc](https://cutereimu.github.io/fengsheng-doc/)**
+
 ## 声明
 
 - **本项目采用`AGPLv3`协议开源，任何直接、间接接触本项目的软件也要求使用`AGPLv3`协议开源**
@@ -108,6 +114,7 @@ push.push_qq_groups=12345678
 | /getscore         | name=aaa                         | 其中name参数是想要获取分数的玩家名字                                                                   |
 | /getlasttime      | name=aaa                         | 获取最近一次游戏距离现在的时间，其中name参数是想要获取分数的玩家名字                                                   |
 | /ranklist         | 无                                | 获取排行榜                                                                                  |
+| /ranklist2        | 无                                | 获取文字版排行榜（前100名）                                                                        |
 | /resetpwd         | name=aaa                         | 其中name参数是想要重置密码的玩家名字（重置为空，玩家可以自行重新设置）                                                  |
 | /forbidrole       | name=aaa                         | 禁用角色，禁用的角色不会再出现在角色池里，其中name参数是想要禁用的中文角色名                                               |
 | /releaserole      | name=aaa                         | 启用角色，其中name参数是想要启用的中文角色名                                                               |
@@ -120,6 +127,8 @@ push.push_qq_groups=12345678
 | /forbidplayer     | name=aaa&hour=72                 | 封号，其中name是用户名，hour是小时                                                                  |
 | /releaseplayer    | name=aaa                         | 解封，其中name是用户名                                                                          |
 | /winrate          | 无                                | 返回一张胜率统计的png图片                                                                         |
+| /winrate2         | 无                                | 返回json格式的胜率统计信息                                                                        |
+| /frequency        | 无                                | 返回json格式的游玩频率统计信息                                                                      |
 | /resetseason      | 无                                | 重置赛季，重置前请手动备份PlayerInfo.csv                                                            |
 | /addenergy        | name=aaa&energy=1                | 增加精力                                                                                   |
 | /getallgames      | 无                                | 获取所有房间的状态                                                                              |

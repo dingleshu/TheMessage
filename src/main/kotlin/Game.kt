@@ -51,6 +51,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
     var playTime: Long = 0
     val isEarly: Boolean
         get() = turn <= players.size
+    var liYouCount = 0
 
     val waitSecond: Int
         get() {
@@ -83,11 +84,15 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             else -> 10L
         }
         gameStartTimeout = GameExecutor.post(this, { start() }, delay, TimeUnit.SECONDS)
+        players.send { notifyRoomStartTimerToc { seconds = delay.toInt().coerceAtLeast(1) } }
     }
 
-    fun cancelStartTimer() {
-        gameStartTimeout?.cancel()
-        gameStartTimeout = null
+    fun cancelStartTimer(needNotify: Boolean = true) {
+        gameStartTimeout?.run {
+            cancel()
+            gameStartTimeout = null
+            if (needNotify) players.send { notifyRoomStartTimerToc { } }
+        }
     }
 
     /**
@@ -100,7 +105,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             players = players + null
             players.send { addOnePositionToc { } }
             index = players.size - 1
-            cancelStartTimer()
+            cancelStartTimer(false)
         }
         players = players.toMutableList().apply { set(index, player) }
         player.location = index
@@ -171,7 +176,24 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         identities.shuffle()
         if (!Config.IsGmEnable && players.count { it is HumanPlayer } == 1) {
             val i = players.indexOfFirst { it is HumanPlayer }
-            if (Statistics.getScore(players[i]!!.playerName) == 0 && identities[i] == Black) { // 对于0分的新人，确保一定是阵营方
+            val score = Statistics.getScore(players[i]!!.playerName) ?: 0
+            if (score < 100) {
+                for (p in players) {
+                    if (p is RobotPlayer) {
+                        p.coefficientA =
+                            if (p.coefficientA < 1.0)
+                                (p.coefficientA * score + 0.8 * (100 - score)) / 100
+                            else
+                                (p.coefficientA * score + 1.2 * (100 - score)) / 100
+                        p.coefficientB =
+                            if (p.coefficientB < 0)
+                                (p.coefficientB * score - 15 * (100 - score)) / 100
+                            else
+                                (p.coefficientB * score + 15 * (100 - score)) / 100
+                    }
+                }
+            }
+            if (score == 0 && identities[i] == Black) { // 对于0分的新人，确保一定是阵营方
                 val j = identities.indexOfFirst { it != Black }
                 identities[i] = identities[j]
                 identities[j] = Black
@@ -217,35 +239,37 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         val newScoreMap = HashMap<String, Int>()
         if (declaredWinners != null && winners != null) {
             if (players.size >= 5) {
-                if (winners.isNotEmpty() && winners.size < players.size) {
-                    val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..2000) }
-                    val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..2000) }
-                    val totalLoser = totalPlayers - totalWinners
-                    val delta = totalLoser / (players.size - winners.size) - totalWinners / winners.size
-                    for ((i, p) in players.withIndex()) {
-                        var score = p!!.calScore(players.filterNotNull(), winners, delta / 10)
-                        if (score > 0 && humanPlayers.size > 1) score += 2 * humanPlayers.size
-                        val (newScore, deltaScore) = Statistics.updateScore(p, score, i == humanPlayers.size - 1)
-                        logger.info("$p(${p.originIdentity},${p.originSecretTask})得${score}分，新分数为：$newScore")
-                        addScoreMap[p.playerName] = deltaScore
-                        newScoreMap[p.playerName] = newScore
-                    }
+                val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..2000) }
+                val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..2000) }
+                val totalLoser = totalPlayers - totalWinners
+                val delta =
+                    if (players.size == winners.size || winners.isEmpty()) 0
+                    else totalLoser / (players.size - winners.size) - totalWinners / winners.size
+                for ((i, p) in players.withIndex()) {
+                    var score = p!!.calScore(players.filterNotNull(), winners, delta / 10)
+                    if (score > 0 && humanPlayers.size > 1) score += 2 * humanPlayers.size
+                    val (newScore, deltaScore) = Statistics.updateScore(p, score, i == humanPlayers.size - 1)
+                    logger.info("$p(${p.originIdentity},${p.originSecretTask})得${score}分，新分数为：$newScore")
+                    addScoreMap[p.playerName] = deltaScore
+                    newScoreMap[p.playerName] = newScore
                 }
                 val playerGameResultList = ArrayList<PlayerGameResult>()
-                if (players.size == humanPlayers.size) {
+                if (humanPlayers.size > 1 || humanPlayers.any { (Statistics.getScore(it) ?: 0) >= 100 }) {
                     val records = ArrayList<Statistics.Record>(players.size)
                     for (p in players) {
-                        records.add(
-                            Statistics.Record(
-                                p!!.originRole,
-                                winners.any { it === p },
-                                p.originIdentity,
-                                p.originSecretTask,
-                                players.size
+                        if (p is HumanPlayer) {
+                            records.add(
+                                Statistics.Record(
+                                    p.originRole,
+                                    winners.any { it === p },
+                                    p.originIdentity,
+                                    p.originSecretTask,
+                                    players.size
+                                )
                             )
-                        )
+                        }
                     }
-                    Statistics.add(records)
+                    if (records.isNotEmpty()) Statistics.add(records)
                 }
                 for (p in humanPlayers) {
                     if (humanPlayers.size <= 1) Statistics.addEnergy(p.playerName, -1)
@@ -347,6 +371,17 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             }
         }, (waitSecond * 3).toLong(), TimeUnit.SECONDS)
         while (true) {
+            if (deck.noCard) {
+                logger.info("牌堆没牌了，游戏结束")
+                players.send { unknownWaitingToc { } }
+                players.send { errorMessageToc { msg = "牌堆没牌了，游戏结束" } }
+                GameExecutor.post(this, {
+                    allPlayerSetRoleFaceUp()
+                    end(emptyList(), emptyList())
+                }, 1, TimeUnit.SECONDS)
+                fsm = null
+                break
+            }
             val result = fsm!!.resolve() ?: break
             fsm = result.next
             if (!result.continueResolve) break

@@ -9,15 +9,16 @@ import org.apache.logging.log4j.kotlin.logger
 /**
  * 摸牌阶段
  */
-data class DrawPhase(override val whoseTurn: Player) : Fsm {
+class DrawPhase(override val whoseTurn: Player) : Fsm {
     override fun resolve(): ResolveResult {
         if (!whoseTurn.alive) {
             return ResolveResult(NextTurn(whoseTurn), true)
         }
         if (!whoseTurn.game!!.isEarly) {
             whoseTurn.coefficientA = (whoseTurn.coefficientA + 1) / 2
-            whoseTurn.coefficientB = (whoseTurn.coefficientB + 1) / 2
+            whoseTurn.coefficientB /= 2
         }
+        whoseTurn.game!!.turn++
         whoseTurn.game!!.realTurn++
         logger.info("${whoseTurn}的回合开始了")
         for (p in whoseTurn.game!!.players) {

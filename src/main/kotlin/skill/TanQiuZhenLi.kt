@@ -86,7 +86,7 @@ class TanQiuZhenLi : MainPhaseSkill() {
         g.resolve(ExecuteTanQiuZhenLi(g.fsm!!, r, target, waitingSecond))
     }
 
-    private data class ExecuteTanQiuZhenLi(
+    private class ExecuteTanQiuZhenLi(
         val fsm: Fsm,
         val r: Player,
         val target: Player,
@@ -243,6 +243,11 @@ class TanQiuZhenLi : MainPhaseSkill() {
                                 value = v1 + v2 + v4
                                 target = PlayerAndCard(p, c)
                             }
+                        }
+                    } else { // 对方不放
+                        if (v1 + v2 > value) {
+                            value = v1 + v2
+                            target = PlayerAndCard(p, c)
                         }
                     }
                     player.messageCards.removeLast()

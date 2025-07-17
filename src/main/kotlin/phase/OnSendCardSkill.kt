@@ -18,7 +18,7 @@ import com.fengsheng.protos.Common.direction
  * @param lockedPlayers 被锁定的玩家
  * @param isMessageCardFaceUp 情报是否面朝上
  */
-data class OnSendCardSkill(
+class OnSendCardSkill(
     override val whoseTurn: Player,
     val sender: Player,
     val messageCard: Card,
@@ -28,6 +28,7 @@ data class OnSendCardSkill(
     val isMessageCardFaceUp: Boolean,
 ) : ProcessFsm() {
     override fun onSwitch() {
+        sender.isSender = true
         sender.game!!.addEvent(SendCardEvent(whoseTurn, sender, messageCard, targetPlayer, dir, lockedPlayers))
     }
 

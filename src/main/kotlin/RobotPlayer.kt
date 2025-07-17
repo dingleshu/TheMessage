@@ -16,7 +16,6 @@ import com.fengsheng.skill.*
 import com.fengsheng.skill.SkillId.*
 import org.apache.logging.log4j.kotlin.logger
 import java.util.concurrent.TimeUnit
-import kotlin.random.Random
 
 class RobotPlayer : Player() {
     override fun notifyAddHandCard(location: Int, unknownCount: Int, cards: List<Card>) {
@@ -41,20 +40,6 @@ class RobotPlayer : Player() {
         for (skill in skills) {
             val ai = aiSkillMainPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as ActiveSkill)) return
-        }
-        if (!Config.IsGmEnable && game!!.players.count { it is HumanPlayer } == 1) {
-            val human = game!!.players.first { it is HumanPlayer }!!
-            if (isEnemy(human) && !(cards.size == 1 && cards.first().type == Ping_Heng)) { // 对于低分的新人，敌方机器人可能不出牌
-                val info = Statistics.getPlayerInfo(human.playerName)
-                if (info != null) {
-                    val score = info.score
-                    val isPowerfulPlayer = info.winCount > 0 && info.winCount * 2 >= info.gameCount
-                    if (!isPowerfulPlayer && score < 60 && Random.nextInt(60) >= score) {
-                        GameExecutor.post(game!!, { game!!.resolve(SendPhaseStart(this)) }, 1, TimeUnit.SECONDS)
-                        return
-                    }
-                }
-            }
         }
         if (cards.size > 1 || findSkill(LENG_XUE_XUN_LIAN) != null ||
             cards.size == 1 && cards.first().type in listOf(Ping_Heng, Feng_Yun_Bian_Huan)) {
@@ -169,6 +154,7 @@ class RobotPlayer : Player() {
                             return@run !(isPartner(nextPlayer) && nextPlayer.role == zhang_yi_ting)
                         }
                     }
+                    if (isPartner(nextPlayer) && myNextValue > myValue) return@run false
                     val lockPlayer = fsm.lockedPlayers.ifEmpty { listOf(fsm.sender) }.first()
                     if (isPartner(lockPlayer)) { // 场上有被锁的队友
                         val lockValue = calculateMessageCardValue(
@@ -210,20 +196,6 @@ class RobotPlayer : Player() {
         this === fsm.whoseFightTurn || return
         val delay = game!!.animationDelayMs
         game!!.animationDelayMs = 0
-        if (!Config.IsGmEnable && game!!.players.count { it is HumanPlayer } == 1) {
-            val human = game!!.players.first { it is HumanPlayer }!!
-            if (isEnemy(human)) { // 对于低分的新人，敌方机器人可能不出牌
-                val info = Statistics.getPlayerInfo(human.playerName)
-                if (info != null) {
-                    val score = info.score
-                    val isPowerfulPlayer = info.winCount > 0 && info.winCount * 2 >= info.gameCount
-                    if (!isPowerfulPlayer && score < 60 && Random.nextInt(60) >= score) {
-                        GameExecutor.post(game!!, { game!!.resolve(FightPhaseNext(fsm)) }, 500 + delay, TimeUnit.MILLISECONDS)
-                        return
-                    }
-                }
-            }
-        }
         for (skill in skills) {
             val ai = aiSkillFightPhase1[skill.skillId] ?: continue
             if (ai(fsm, skill as? ActiveSkill)) return
@@ -323,7 +295,9 @@ class RobotPlayer : Player() {
             if (identity != Black)
                 target = game!!.players.find { it !== this && it!!.alive && it.identity == identity }
             if (target == null) // 如果没有人给，则从本回合没有出过牌的人（不包含该回合角色和情报传出者）中随机挑一个给
-                target = game!!.players.filter { it !== fsm.whoseTurn && it!!.alive && !it.useCardThisTurn }.randomOrNull()
+                target = game!!.players.filter {
+                    it !== fsm.whoseTurn && it!!.alive && !it.isSender && it.useCardThisTurn.isEmpty()
+                }.randomOrNull()
             if (target != null) {
                 val giveCards = cards.sortCards(identity, true).takeLast(3)
                 if (giveCards.isNotEmpty()) {
@@ -364,6 +338,7 @@ class RobotPlayer : Player() {
         )
         private val aiSkillMainPhase2 = hashMapOf(
             JIAO_JI to JiaoJi::ai,
+            JI_BAN to JiBan::ai2,
         )
         private val aiSkillSendPhaseStart = hashMapOf(
             LENG_XUE_XUN_LIAN to LengXueXunLian::ai,

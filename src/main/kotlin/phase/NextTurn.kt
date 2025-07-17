@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  *
  * @param whoseTurn 当前回合的玩家（不是下回合的玩家）
  */
-data class NextTurn(override val whoseTurn: Player) : ProcessFsm() {
+class NextTurn(override val whoseTurn: Player) : ProcessFsm() {
     override fun onSwitch() {
         whoseTurn.game!!.addEvent(TurnEndEvent(whoseTurn))
     }
@@ -33,11 +33,13 @@ data class NextTurn(override val whoseTurn: Player) : ProcessFsm() {
                 game.mainPhaseAlreadyNotify = false
                 game.players.forEach {
                     it!!.resetSkillUseCount()
-                    it.useCardThisTurn = false
+                    it.useCardThisTurn.clear()
                     it.canWeiBiCardIds.removeIf { cid ->
                         !game.players.any { p -> p!!.alive && p !== it && p.cards.any { c -> c.id == cid } }
                     }
+                    it.isSender = false
                 }
+                game.liYouCount = 0
                 InvalidSkill.reset(game)
                 OneTurnSkill.reset(game)
                 game.players.send { unknownWaitingToc { } }
@@ -49,9 +51,9 @@ data class NextTurn(override val whoseTurn: Player) : ProcessFsm() {
     }
 
     private fun checkDisturberWin(game: Game): Boolean { // 无需判断簒夺者，因为簒夺者、搅局者都要求是自己回合
-        val players = game.players.filterNotNull().filter { !it.lose }
+        if (whoseTurn.lose) return false // 失败了则不能赢
         if (whoseTurn.identity != Black || whoseTurn.secretTask != Disturber) return false // 不是搅局者
-        if (players.any { it !== whoseTurn && it.alive && it.messageCards.countTrueCard() < 2 }) return false
+        if (game.players.any { it !== whoseTurn && it!!.alive && it.messageCards.countTrueCard() < 2 }) return false
         val declaredWinner = arrayListOf(whoseTurn)
         val winner = arrayListOf(whoseTurn)
         game.changeGameResult(whoseTurn, declaredWinner, winner)

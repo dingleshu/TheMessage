@@ -3,7 +3,7 @@ package com.fengsheng
 import com.fengsheng.ScoreFactory.addScore
 import com.fengsheng.ScoreFactory.getSeasonTitleByScore
 import com.fengsheng.protos.Common.*
-import com.fengsheng.protos.Common.color.*
+import com.fengsheng.protos.Common.color.Black
 import com.fengsheng.protos.Common.secret_task.*
 import com.fengsheng.protos.getRecordListToc
 import kotlinx.coroutines.*
@@ -34,6 +34,7 @@ object Statistics {
     private val totalGameCount = AtomicInteger()
     private val trialStartTime = ConcurrentHashMap<String, Long>()
     val rankList25 = AtomicReference<String>()
+    val rankList100 = AtomicReference<String>()
     val rankListImage = AtomicReference<BufferedImage>()
 
     init {
@@ -61,7 +62,7 @@ object Statistics {
                     sb.append(r.role).append(',')
                     sb.append(r.isWinner).append(',')
                     sb.append(r.identity).append(',')
-                    sb.append(if (r.identity == color.Black) r.task.toString() else "").append(',')
+                    sb.append(if (r.identity == Black) r.task.toString() else "").append(',')
                     sb.append(r.totalPlayerCount).append(',')
                     sb.append(time).append('\n')
                 }
@@ -94,6 +95,8 @@ object Statistics {
                     val newBlacksGame = if (count.identity == Black)
                         v.blacksGameCount + (count.secret_task to ((v.blacksGameCount[count.secret_task] ?: 0) + 1))
                     else v.blacksGameCount
+                    win += addWin
+                    game++
                     v.copy(winCount = v.winCount + addWin,
                         gameCount = v.gameCount + 1, lastTime = now,
                         rbWinCount = v.rbWinCount + addRbWin,
@@ -246,6 +249,7 @@ object Statistics {
 
         rankListImage.set(Image.genRankListImage(l1.take(50)))
         rankList25.set(makeRankList(25))
+        rankList100.set(makeRankList(100))
     }
 
     fun resetPassword(name: String): Boolean {
@@ -298,7 +302,7 @@ object Statistics {
         get() = PlayerGameCount(totalWinCount.get(), totalGameCount.get())
 
     fun getTitleRank(title: String): Int = when (title) {
-        "\u2B50" -> 1 // score >= 2900
+        "\u2600\uFE0F" -> 1 // score >= 2900
         "\uD83D\uDC51" -> 2 // score >= 1900
         "\uD83D\uDCA0" -> 3 // score >= 1400
         "\uD83D\uDC8D" -> 4 // score >= 920
@@ -310,15 +314,8 @@ object Statistics {
         val titleList = mutableListOf<String>()
         var i = 0
         while (i < titles.length) {
-            if (titles[i] == '\u2B50') {
-                // 如果是单字符 emoji（⭐）
-                titleList.add(titles[i].toString())
-                i += 1
-            } else {
-                // 处理其他双字符 emoji
-                titleList.add(titles.substring(i, i + 2))
-                i += 2
-            }
+            titleList.add(titles.substring(i, i + 2))
+            i += 2
         }
         return titleList.sortedBy { getTitleRank(it) }.joinToString("")
     }
@@ -483,7 +480,7 @@ object Statistics {
 
     class PlayerGameResult(val playerName: String, val isWin: Boolean, val identity: color, val secret_task: secret_task)
 
-    data class PlayerGameCount(val winCount: Int, val gameCount: Int) {
+    class PlayerGameCount(val winCount: Int, val gameCount: Int) {
         fun random(): PlayerGameCount {
             val i = Random.nextInt(20)
             return PlayerGameCount(winCount * i / 100, gameCount * i / 100)

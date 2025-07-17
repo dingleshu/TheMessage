@@ -2,7 +2,7 @@ package com.fengsheng
 
 import com.fengsheng.Statistics.PlayerGameCount
 import com.fengsheng.Statistics.PlayerInfo
-import com.fengsheng.protos.Common
+import com.fengsheng.protos.Common.*
 import com.fengsheng.skill.RoleCache
 import java.awt.Color
 import java.awt.Font
@@ -11,6 +11,8 @@ import java.io.BufferedReader
 import java.io.FileInputStream
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.*
 
 object Image {
@@ -56,6 +58,90 @@ object Image {
     private const val CELL_H = 18
     private val font = Font("宋体", 0, CELL_H - 3)
 
+    /**
+     * @return $[{"date": 日期, "count": 场次, "pc": 人次}$] 与 $[0点多少人，1点多少人，......，23点多少人$]
+     */
+    fun getFrequency(): Pair<List<Map<String, Any>>, IntArray> {
+        val count = HashMap<String, HashSet<String>>()
+        val pc = HashMap<String, Int>()
+        val currentDate = LocalDate.now()
+        val hours = IntArray(24)
+        FileInputStream("stat.csv").use { `is` ->
+            BufferedReader(InputStreamReader(`is`)).use { reader ->
+                var line: String?
+                while (true) {
+                    line = reader.readLine()
+                    if (line.isNullOrBlank()) break
+                    val a = line.split(",").dropLastWhile { it.isEmpty() }
+                    if (a.size < 6) continue
+                    val time = a[5]
+                    val arr = time.split(" ")
+                    val date = arr[0]
+                    count.getOrPut(date) { HashSet<String>() }.add(time)
+                    pc[date] = (pc[date] ?: 0) + 1
+                    if (ChronoUnit.DAYS.between(LocalDate.parse(date), currentDate) <= 30) {
+                        hours[arr[1].substring(0, 2).toInt()]++
+                    }
+                }
+            }
+        }
+        return Pair(count.map { (date, c) ->
+            mapOf("date" to date, "count" to c.size, "pc" to (pc[date] ?: 0))
+        }.sortedBy { it["date"] as String }.takeLast(31), hours)
+    }
+
+    /**
+     * @return {"角色名": $[总场次, 胜场$]} 与 各神秘人身份的$[身份, 总场次, 胜场$]
+     */
+    fun getWinRateJson(): Pair<Map<String, IntArray>, List<List<Any>>> {
+        val appearCount = HashMap<role, Int>()
+        val winCount = HashMap<role, Int>()
+        val secretRates = HashMap<String, IntArray>()
+        val secretNames = listOf("镇压者", "簒夺者", "双面间谍", "诱变者", "先行者", "搅局者", "清道夫")
+        FileInputStream("stat.csv").use { `is` ->
+            BufferedReader(InputStreamReader(`is`)).use { reader ->
+                var line: String?
+                while (true) {
+                    line = reader.readLine()
+                    if (line.isNullOrBlank()) break
+                    val a = line.split(",").dropLastWhile { it.isEmpty() }
+                    val role = role.valueOf(a[0])
+                    val isWin = a[1].toBoolean()
+
+                    fun addRate(name: String, isWin: Boolean) {
+                        val rate = secretRates.getOrPut(name) { IntArray(2) }
+                        rate[0]++
+                        if (isWin) {
+                            rate[1]++
+                        }
+                    }
+
+                    appearCount[role] = (appearCount[role] ?: 0) + 1
+                    if (isWin) {
+                        winCount[role] = (winCount[role] ?: 0) + 1
+                    }
+                    val identity = color.valueOf(a[2])
+                    if (identity == color.Black) {
+                        val secretName = secretNames[secret_task.valueOf(a[3]).number]
+                        addRate(secretName, isWin)
+                        addRate("神秘人", isWin)
+                    } else {
+                        addRate("潜伏/军情", isWin)
+                    }
+                    addRate("总胜率", isWin)
+                }
+            }
+        }
+        val result = HashMap<String, IntArray>()
+        for ((key, appear) in appearCount) {
+            val win = winCount[key] ?: 0
+            result[RoleCache.getRoleName(key) ?: ""] = intArrayOf(appear, win)
+        }
+        return Pair(result, (listOf("总胜率", "潜伏/军情", "神秘人") + secretNames).map {
+            listOf(it, secretRates[it]?.get(0) ?: 0, secretRates[it]?.get(1) ?: 0)
+        })
+    }
+
     fun getWinRateImage(): BufferedImage {
         fun IntArray.inc(index: Int? = null) {
             this[0]++
@@ -77,20 +163,20 @@ object Image {
             "角色", "场次", "总胜率", "军潜", "神秘人",
             "镇压者", "簒夺者", "双面间谍", "诱变者", "先行者", "搅局者", "清道夫",
         )
-        val appearCount = HashMap<Common.role, IntArray>()
-        val winCount = HashMap<Common.role, IntArray>()
+        val appearCount = HashMap<role, IntArray>()
+        val winCount = HashMap<role, IntArray>()
         FileInputStream("stat.csv").use { `is` ->
             BufferedReader(InputStreamReader(`is`)).use { reader ->
                 var line: String?
                 while (true) {
                     line = reader.readLine()
-                    if (line == null) break
-                    val a = line.split(Regex(",")).dropLastWhile { it.isEmpty() }
-                    val role = Common.role.valueOf(a[0])
+                    if (line.isNullOrBlank()) break
+                    val a = line.split(",").dropLastWhile { it.isEmpty() }
+                    val role = role.valueOf(a[0])
                     val appear = appearCount.computeIfAbsent(role) { IntArray(10) }
                     val win = winCount.computeIfAbsent(role) { IntArray(10) }
                     val index =
-                        if ("Black" == a[2]) Common.secret_task.valueOf(a[3]).number + 3
+                        if ("Black" == a[2]) secret_task.valueOf(a[3]).number + 3
                         else null
                     appear.inc(index)
                     if (a[1].toBoolean()) win.inc(index)

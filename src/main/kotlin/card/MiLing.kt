@@ -68,7 +68,6 @@ class MiLing : Card {
         val target = args[0] as Player
         val secret = args[1] as Int
         val color = this.secret[secret]
-        target.useCardThisTurn = true
         logger.info("${r}对${target}使用了$this，并宣言了$color")
         r.deleteCard(id)
         val hasColor = target.cards.any { color in it.colors }
@@ -96,7 +95,7 @@ class MiLing : Card {
         g.resolve(ResolveCard(r, r, target, getOriginCard(), Mi_Ling, resolveFunc, fsm))
     }
 
-    private data class MiLingChooseCard(
+    private class MiLingChooseCard(
         val card: MiLing,
         val player: Player,
         val target: Player,
@@ -168,7 +167,7 @@ class MiLing : Card {
         }
     }
 
-    data class ExecuteMiLing(
+    class ExecuteMiLing(
         val card: MiLing,
         val target: Player,
         val secret: Int,
