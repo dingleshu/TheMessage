@@ -50,7 +50,7 @@ class XianFaZhiRen : ActiveSkill, TriggeredSkill {
                     waitingSecond = g.waitSecond
                     val seq = p.seq
                     this.seq = seq
-                    p.timeout = GameExecutor.post(g, {
+                    p.timeout = p.setTimeoutWithTimestamp({
                         if (p.checkSeq(seq))
                             g.tryContinueResolveProtocol(p, skillXianFaZhiRenATos { this.seq = seq })
                     }, p.getWaitSeconds(waitingSecond + 2).toLong(), TimeUnit.SECONDS)
@@ -58,18 +58,18 @@ class XianFaZhiRen : ActiveSkill, TriggeredSkill {
                 else unknownWaitingToc { waitingSecond = g.waitSecond }
             }
             if (r is RobotPlayer) {
-                GameExecutor.post(g, {
-                    var targetAndCard: PlayerAndCard? = null
-                    var value = 100
-                    for (p in g.players.filter { it!!.alive }.shuffled()) {
-                        for (card in p!!.messageCards.toList()) {
-                            val v = r.calculateRemoveCardValue(event.whoseTurn, p, card)
-                            if (v > value) {
-                                value = v
-                                targetAndCard = PlayerAndCard(p, card)
-                            }
+                var targetAndCard: PlayerAndCard? = null
+                var value = 100
+                for (p in g.players.filter { it!!.alive }.shuffled()) {
+                    for (card in p!!.messageCards.toList()) {
+                        val v = r.calculateRemoveCardValue(event.whoseTurn, p, card)
+                        if (v > value) {
+                            value = v
+                            targetAndCard = PlayerAndCard(p, card)
                         }
                     }
+                }
+                GameExecutor.post(g, {
                     g.tryContinueResolveProtocol(r, skillXianFaZhiRenATos {
                         if (targetAndCard != null) {
                             enable = true
@@ -77,7 +77,7 @@ class XianFaZhiRen : ActiveSkill, TriggeredSkill {
                             cardId = targetAndCard.card.id
                         }
                     })
-                }, 100, TimeUnit.MILLISECONDS)
+                }, if (targetAndCard != null) 2000 else 100, TimeUnit.MILLISECONDS)
             }
             return null
         }
@@ -203,7 +203,7 @@ class XianFaZhiRen : ActiveSkill, TriggeredSkill {
         override fun resolve(): ResolveResult? {
             if (r is HumanPlayer) {
                 val seq = r.seq
-                r.timeout = GameExecutor.post(r.game!!, {
+                r.timeout = r.setTimeoutWithTimestamp({
                     if (r.checkSeq(seq)) {
                         r.game!!.tryContinueResolveProtocol(r, skillXianFaZhiRenBTos {
                             targetPlayerId = r.getAlternativeLocation(defaultTarget.location)

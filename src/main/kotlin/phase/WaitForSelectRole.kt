@@ -40,7 +40,7 @@ class WaitForSelectRole(val game: Game, val options: List<MutableList<RoleSkills
                     player.send(gameStartToc { })
                 else
                     notifySelectRole(player)
-                player.timeout = GameExecutor.post(game, {
+                player.timeout = player.setTimeoutWithTimestamp({
                     game.tryContinueResolveProtocol(player, selectRoleTos {
                         role = options[player.location].firstOrNull()?.role ?: unknown
                     })
@@ -182,7 +182,8 @@ class WaitForSelectRole(val game: Game, val options: List<MutableList<RoleSkills
             a_fu_luo_la,
             sp_lian_yuan,
             shang_yu,
-            bian_yun_jiang
+            bian_yun_jiang,
+            gui_jiao
         )
     }
 }

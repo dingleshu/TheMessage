@@ -228,6 +228,38 @@ fun Player.calculateMessageCardValue(
 ): Int {
     if (!inFrontOfWhom.alive) return 0
     var v1 = calculateMessageCardValue(whoseTurn, inFrontOfWhom, colors, checkThreeSame)
+
+    fun merge(a: Int, b: Int): Int {
+        return if (a == 600 || b == 600) 600 // 其中一个已经赢了，就是赢了，以防共赢的情况下还非要出牌拦敌方
+        else a + b
+    }
+    fun addScore(p: Player, score: Int) {
+        if (p.identity != Black) { // 军潜：己方加分，敌方减分，神秘人不管
+            if (identity == p.identity) v1 = merge(v1, score)
+            if (identity != p.identity && identity != Black) v1 = merge(v1, -score)
+        } else if (p === this) { // 神秘人：自己加分，其他人不管
+            v1 = merge(v1, score)
+        }
+    }
+
+    // 白小年【转交】：计算接收情报后可以转移给队友的最大价值
+    if (Black !in colors && inFrontOfWhom.skills.any { it is ZhuanJiao }) {
+        var maxTeammateValue = 0
+        var myMaxTeammateValue = 0
+        for (teammate in game!!.players.filterNotNull()) {
+            teammate.alive && inFrontOfWhom.isPartnerOrSelf(teammate) || continue
+            val teammateValue = inFrontOfWhom.calculateMessageCardValue(whoseTurn, teammate, colors, true)
+            val myTeammateValue = calculateMessageCardValue(whoseTurn, teammate, colors, true)
+            if (teammateValue > maxTeammateValue) {
+                maxTeammateValue = teammateValue
+                myMaxTeammateValue = myTeammateValue
+            }
+        }
+        // 使用白小年队友接收的最大价值作为基础，再加上技能奖励
+        v1 = myMaxTeammateValue
+        addScore(inFrontOfWhom, 11)
+    }
+
     if (sender != null) {
         // TODO 临时这样写，后续应该改成调用Player.countMessageCard来计数
         class TmpCard(colors: List<color>) : Card(999, colors, Up, false) {
@@ -235,8 +267,6 @@ fun Player.calculateMessageCardValue(
             override fun canUse(g: Game, r: Player, vararg args: Any) = false
             override fun execute(g: Game, r: Player, vararg args: Any) = Unit
         }
-        fun merge(a: Int, b: Int): Int = if (a == 600 || b == 600) 600 // 其中一个已经赢了，就是赢了，以防共赢的情况下还非要出牌拦敌方
-        else a + b
         if (colors.size == 2 && inFrontOfWhom.skills.any { it is JinShen }) { // 金生火
             var valueInFrontOfWhom = 0
             for (c in inFrontOfWhom.cards.toList()) {
@@ -310,14 +340,6 @@ fun Player.calculateMessageCardValue(
             }
             inFrontOfWhom.messageCards.removeLast()
         }
-        fun addScore(p: Player, score: Int) {
-            if (p.identity != Black) { // 军潜：己方加分，敌方减分，神秘人不管
-                if (identity == p.identity) v1 = merge(v1, score)
-                if (identity != p.identity && identity != Black) v1 = merge(v1, -score)
-            } else if (p === this) { // 神秘人：自己加分，其他人不管
-                v1 = merge(v1, score)
-            }
-        }
         if (Black in colors && inFrontOfWhom.skills.any { it is ShiSi }) { // 老汉【视死】
             addScore(inFrontOfWhom, 20)
         }
@@ -353,14 +375,45 @@ fun Player.calculateMessageCardValue(
             // 王响【咱们工人有知识】
             addScore(inFrontOfWhom, 9)
         }
-        if (Black !in colors && inFrontOfWhom.skills.any { it is ZhuanJiao || it is JiSong }) {
-            // 白小年【转交】、鬼脚【急送】
+
+        if (Black !in colors && inFrontOfWhom.skills.any { it is JiSong }) {
+            // 鬼脚【急送】
             addScore(inFrontOfWhom, 11)
         }
         if (sender.skills.any { it is CangShenJiaoTang }) {
             // 玛利亚【藏身教堂】
             if (sender.isPartnerOrSelf(inFrontOfWhom) && !inFrontOfWhom.isPublicRole && inFrontOfWhom.roleFaceUp) {
                 addScore(inFrontOfWhom, 80)
+            }
+            // 防御玛利亚【藏身教堂】：公开角色的黑色情报可能被偷走
+            if (inFrontOfWhom.isPublicRole && (inFrontOfWhom.messageCards.count(Black) > 0 || Black in colors)) {
+                inFrontOfWhom.messageCards.add(TmpCard(colors))
+                var maLiYaMaxValue = 0
+                var myMaxValue = 0
+                var asMessage = false
+                for (messageCard in inFrontOfWhom.messageCards.filter { it.isBlack() }) {
+                    val removeValue = sender.calculateRemoveCardValue(whoseTurn, inFrontOfWhom, messageCard)
+                    if (removeValue + 10 >= maLiYaMaxValue) {
+                        maLiYaMaxValue = removeValue + 10
+                        asMessage = false
+                        myMaxValue = calculateRemoveCardValue(whoseTurn, inFrontOfWhom, messageCard)
+                    }
+                    if (sender !== inFrontOfWhom) {
+                        val senderGainValue = sender.calculateMessageCardValue(whoseTurn, sender, messageCard)
+                        val totalLoss = removeValue + senderGainValue
+                        if (totalLoss > maLiYaMaxValue) {
+                            maLiYaMaxValue = totalLoss
+                            asMessage = true
+                            myMaxValue = calculateRemoveCardValue(whoseTurn, inFrontOfWhom, messageCard) +
+                                calculateMessageCardValue(whoseTurn, sender, messageCard)
+                        }
+                    }
+                }
+                v1 = merge(v1, myMaxValue)
+                if (!asMessage) {
+                    addScore(sender, 10)
+                }
+                inFrontOfWhom.messageCards.removeLast()
             }
         }
         if (!inFrontOfWhom.roleFaceUp && (inFrontOfWhom.hasEverFaceUp || inFrontOfWhom === this) &&
@@ -384,6 +437,29 @@ fun Player.calculateMessageCardValue(
                 }
             }
             v1 = merge(v1, myValue)
+        }
+        // 防御王富贵【江湖令】：从王富贵的角度判断是否想要弃掉牌
+        if (sender.skills.any { it is JiangHuLing } && sender.skills.any { it is OneTurnSkill } && sender !== inFrontOfWhom) {
+            // 王富贵已经发动了江湖令，模拟他的决策过程
+            inFrontOfWhom.messageCards.add(TmpCard(colors))
+            var wangFuGuiMaxValue = 0
+            var myMaxValue = 0
+            var isBlack = false
+            for (messageCard in inFrontOfWhom.messageCards.toList()) {
+                // 从王富贵的角度计算移除这张牌的价值
+                var wangFuGuiValue = sender.calculateRemoveCardValue(whoseTurn, inFrontOfWhom, messageCard)
+                if (messageCard.isBlack()) {
+                    wangFuGuiValue += 10
+                }
+                if (wangFuGuiValue > wangFuGuiMaxValue) {
+                    wangFuGuiMaxValue = wangFuGuiValue
+                    myMaxValue = calculateRemoveCardValue(whoseTurn, inFrontOfWhom, messageCard)
+                    isBlack = messageCard.isBlack()
+                }
+            }
+            v1 = merge(v1, myMaxValue)
+            if (isBlack) addScore(sender, 10)
+            inFrontOfWhom.messageCards.removeLast()
         }
         if (Black in colors && inFrontOfWhom.skills.any { it is RuGui } && inFrontOfWhom.messageCards.count(Black) == 2) {
             // 老汉【如归】
@@ -665,7 +741,7 @@ fun Player.calSendMessageCard(
                 zhangYiting.messageCards.count(identity) == partner.maxOf { it!!.messageCards.count(identity) }
 
             val targetOrder = if (shouldPrioritizeZhangYiting) {
-                listOf(zhangYiting!!) + (partner - zhangYiting).shuffled() + enemy.shuffled()
+                listOf(zhangYiting) + (partner - zhangYiting).shuffled() + enemy.shuffled()
             } else {
                 partner.shuffled() + enemy.shuffled()
             }
