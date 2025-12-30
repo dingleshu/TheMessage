@@ -175,10 +175,7 @@ class HumanPlayer(var channel: Channel, var needWaitLoad: Boolean = false, val n
             do {
                 val player = game!!.players[l]!!
                 roles.add(if (player.roleFaceUp || l == location) player.role else unknown)
-                val name =
-                    if (player.playerTitle.isEmpty()) player.playerName
-                    else "${player.playerName}·${player.playerTitle}"
-                names.add(name)
+                names.add(player.playerName)
                 l = (l + 1) % game!!.players.size
             } while (l != location)
             possibleSecretTask.addAll(game!!.possibleSecretTasks)
@@ -406,7 +403,7 @@ class HumanPlayer(var channel: Channel, var needWaitLoad: Boolean = false, val n
                 val ns = newScoreMap[player.playerName] ?: Statistics.getScore(player) ?: 0
                 addScore.add(addScoreMap[player.playerName] ?: 0)
                 newScore.add(ns)
-                newRank.add(ScoreFactory.getRankNameByScore(ns))
+                newRank.add(ScoreFactory.getRankStringNameByScore(ns).take(2))
                 alive.add(player.alive)
             }
         })

@@ -4,6 +4,7 @@ import com.fengsheng.QQPusher
 import com.fengsheng.ScoreFactory
 import com.fengsheng.Statistics
 import com.fengsheng.protos.Common.secret_task.*
+import kotlinx.coroutines.runBlocking
 import java.util.function.Function
 
 class Getscore : Function<Map<String, String>, Any> {
@@ -14,11 +15,17 @@ class Getscore : Function<Map<String, String>, Any> {
             if (playerInfo == null) {
                 gson.toJson(mapOf("result" to "${name}已身死道消"))
             } else {
+                val operator = form["operator"]
+                if (operator != null) {
+                    val playerInfo2 = Statistics.getPlayerInfo(operator)
+                    if (playerInfo2 == null || playerInfo2.scoreWithDecay * 1.3 < playerInfo.scoreWithDecay)
+                        return gson.toJson(mapOf("result" to "差距太大，无法查询"))
+                }
                 val winRateSum = "%.2f%%".format(ScoreFactory.getAllWinRate())
                 val rbWinRateSum = "%.2f%%".format(ScoreFactory.getRBWinRate())
                 val blackWinRateSum = "%.2f%%".format(ScoreFactory.getBlackWinRate())
                 val score = playerInfo.scoreWithDecay
-                val rank = ScoreFactory.getRankNameByScore(score)
+                val rank = ScoreFactory.getRankStringNameByScore(score)
                 val total = playerInfo.gameCount
                 val winRate =
                     if (playerInfo.gameCount == 0) "0.00%"
@@ -52,7 +59,7 @@ class Getscore : Function<Map<String, String>, Any> {
                 s += "---------------------------------\n"
                 s += "剩余精力：$energy"
                 if (playerInfo.score != score) s += "（长期不打会掉分，打一场即可全部恢复）"
-                val history = QQPusher.getHistory(name)
+                val history = runBlocking { QQPusher.getHistory(name) }
                 if (history.isNotEmpty())
                     s += "\n\n最近${history.size}场战绩\n" + history.joinToString(separator = "\n")
                 gson.toJson(mapOf("result" to s))

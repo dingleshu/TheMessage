@@ -118,8 +118,7 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
             winCount = count.winCount
             gameCount = count.gameCount
             score = Statistics.getScore(name) ?: 0
-            rank = if (player is HumanPlayer) ScoreFactory.getRankNameByScore(score) else ""
-            title = player.playerTitle
+            rank = if (player is HumanPlayer) ScoreFactory.getRankStringNameByScore(score) else ""
         }
         players.forEach { if (it !== player && it is HumanPlayer) it.send(msg) }
         if (unready == 0) {
@@ -239,8 +238,8 @@ class Game(val id: Int, totalPlayerCount: Int, val actorRef: ActorRef) {
         val newScoreMap = HashMap<String, Int>()
         if (declaredWinners != null && winners != null) {
             if (players.size >= 5) {
-                val totalWinners = winners.sumOf { (Statistics.getScore(it) ?: 0).coerceIn(180..2000) }
-                val totalPlayers = players.sumOf { (Statistics.getScore(it!!) ?: 0).coerceIn(180..2000) }
+                val totalWinners = winners.sumOf { Statistics.getScore(it) ?: 0 }
+                val totalPlayers = players.sumOf { Statistics.getScore(it!!) ?: 0 }
                 val totalLoser = totalPlayers - totalWinners
                 val delta =
                     if (players.size == winners.size || winners.isEmpty()) 0

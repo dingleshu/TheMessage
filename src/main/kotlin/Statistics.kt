@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.fixedRateTimer
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 object Statistics {
@@ -32,7 +33,7 @@ object Statistics {
     private val robotInfoMap = ConcurrentHashMap<String, RobotInfo>()
     private val totalWinCount = AtomicInteger()
     private val totalGameCount = AtomicInteger()
-    private val trialStartTime = ConcurrentHashMap<String, Long>()
+    private val robotAveScore = AtomicInteger()
     val rankList25 = AtomicReference<String>()
     val rankList100 = AtomicReference<String>()
     val rankListImage = AtomicReference<BufferedImage>()
@@ -73,16 +74,22 @@ object Statistics {
         }
     }
 
+    fun gmAddScore(name: String, score: Int): Int {
+        var newScore = 0
+        playerInfoMap.computeIfPresent(name) { _, v ->
+            newScore = v.score + score
+            v.copy(score = newScore, maxScore = maxOf(v.maxScore, newScore))
+        }
+        pool.trySend(::savePlayerInfo)
+        return newScore
+    }
+
     fun addPlayerGameCount(playerGameResultList: List<PlayerGameResult>) {
         try {
             val now = System.currentTimeMillis()
             var win = 0
             var game = 0
-            var updateTrial = false
             for (count in playerGameResultList) {
-                if (count.isWin) {
-                    if (trialStartTime.remove(count.playerName) != null) updateTrial = true
-                }
                 playerInfoMap.computeIfPresent(count.playerName) { _, v ->
                     val addWin = if (count.isWin) 1 else 0
                     val addRbWin = if (count.isWin && count.identity != Black) 1 else 0
@@ -112,7 +119,6 @@ object Statistics {
             totalGameCount.addAndGet(game)
             pool.trySend {
                 savePlayerInfo()
-                if (updateTrial) saveTrials()
             }
         } catch (e: Exception) {
             logger.error("add player game count failed: ", e)
@@ -171,10 +177,9 @@ object Statistics {
 
     fun getPlayerInfo(name: String) = playerInfoMap[name]
     fun getScore(name: String) = playerInfoMap[name]?.score
-    fun getScore(player: Player) =
-        if (player is HumanPlayer) getScore(player.playerName) else robotInfoMap[player.playerName]?.score
+    fun getScore(player: Player) = if (player is HumanPlayer) getScore(player.playerName) else robotAveScore.get()
     fun getScore2(player: Player) =
-        if (player is HumanPlayer) playerInfoMap[player.playerName]?.scoreWithDecay else robotInfoMap[player.playerName]?.score
+        if (player is HumanPlayer) playerInfoMap[player.playerName]?.scoreWithDecay else robotAveScore.get()
     fun getEnergy(name: String) = playerInfoMap[name]?.energy ?: 0
     fun addEnergy(name: String, energy: Int, save: Boolean = false): Boolean {
         val ok = playerInfoMap.computeIfPresent(name) { _, v ->
@@ -216,6 +221,15 @@ object Statistics {
                 delta = newScore - (v?.score ?: 0)
                 v?.copy(score = newScore) ?: RobotInfo(player.playerName, newScore)
             }
+            var count = 0
+            var total = 0
+            robotInfoMap.forEach { (_, value) ->
+                count++
+                total += value.score
+            }
+            robotAveScore.set(if (count > 0) (total.toDouble() / count).roundToInt() else 0)
+            newScore = robotAveScore.get()
+            delta = score
         }
         if (save) pool.trySend(::savePlayerInfo)
         return newScore to delta
@@ -242,7 +256,7 @@ object Statistics {
             var i = 0
             return l.joinToString(separator = "\n") {
                 val name = it.name.replace("\"", "\\\"")
-                val rank = ScoreFactory.getRankNameByScore(it.score)
+                val rank = ScoreFactory.getRankStringNameByScore(it.score)
                 "第${++i}名：$name·$rank·${it.score}"
             }
         }
@@ -302,12 +316,13 @@ object Statistics {
         get() = PlayerGameCount(totalWinCount.get(), totalGameCount.get())
 
     fun getTitleRank(title: String): Int = when (title) {
-        "\u2600\uFE0F" -> 1 // score >= 2900
-        "\uD83D\uDC51" -> 2 // score >= 1900
-        "\uD83D\uDCA0" -> 3 // score >= 1400
-        "\uD83D\uDC8D" -> 4 // score >= 920
-        "\uD83E\uDD47" -> 5 // score >= 520
-        else -> 6 // Lower than 520
+        "\u2600\uFE0F" -> 7 // score >= 4800
+        "\uD83D\uDD25" -> 6 // score >= 2900
+        "\uD83D\uDC51" -> 5 // score >= 1900
+        "\uD83D\uDCA0" -> 4 // score >= 1400
+        "\uD83D\uDC8D" -> 3 // score >= 920
+        "\uD83E\uDD47" -> 2 // score >= 520
+        else -> 1 // Lower than 520
     }
 
     fun sortTitles(titles: String): String {
@@ -317,7 +332,7 @@ object Statistics {
             titleList.add(titles.substring(i, i + 2))
             i += 2
         }
-        return titleList.sortedBy { getTitleRank(it) }.joinToString("")
+        return titleList.sortedByDescending { getTitleRank(it) }.joinToString("")
     }
 
     private fun savePlayerInfo() {
@@ -350,15 +365,6 @@ object Statistics {
             sb.append(info.name).append('\n')
         }
         writeFile("robotInfo.csv", sb.toString().toByteArray())
-    }
-
-    private fun saveTrials() {
-        val sb = StringBuilder()
-        for ((key, value) in trialStartTime) {
-            sb.append(value).append(',')
-            sb.append(key).append('\n')
-        }
-        writeFile("trial.csv", sb.toString().toByteArray())
     }
 
     @Throws(IOException::class)
@@ -416,36 +422,17 @@ object Statistics {
             }
         } catch (ignored: FileNotFoundException) {
         }
+
+        var count = 0
+        var total = 0
+        robotInfoMap.forEach { (_, value) ->
+            count++
+            total += value.score
+        }
+        robotAveScore.set(if (count > 0) (total.toDouble() / count).roundToInt() else 0)
         totalWinCount.set(winCount)
         totalGameCount.set(gameCount)
-        try {
-            BufferedReader(InputStreamReader(FileInputStream("trial.csv"))).use { reader ->
-                var line: String?
-                while (true) {
-                    line = reader.readLine()
-                    if (line == null) break
-                    val a = line!!.split(",".toRegex(), limit = 2)
-                    trialStartTime[a[1]] = a[0].toLong()
-                }
-            }
-        } catch (ignored: FileNotFoundException) {
-        }
         calculateRankList()
-    }
-
-    fun getTrialStartTime(playerName: String): Long {
-        return trialStartTime.getOrDefault(playerName, 0L)
-    }
-
-    fun setTrialStartTime(playerName: String, time: Long) {
-        pool.trySend {
-            try {
-                trialStartTime[playerName] = time
-                saveTrials()
-            } catch (e: Exception) {
-                logger.error("execute task failed", e)
-            }
-        }
     }
 
     fun displayRecordList(player: HumanPlayer) {
@@ -467,6 +454,51 @@ object Statistics {
                     }
                 }
             })
+        }
+    }
+
+    fun removeDeadPlayers(): Int {
+        val countChannel = Channel<Int>(1)
+        pool.trySend {
+            val sb = StringBuilder()
+            val deadPlayers = ArrayList<String>()
+            for ((_, info) in playerInfoMap) {
+                if (info.scoreWithDecayWithoutLimit > -1200) continue
+                sb.append(info.winCount).append(',')
+                sb.append(info.gameCount).append(',')
+                sb.append(info.name).append(',')
+                sb.append(info.score).append(',')
+                sb.append(info.password).append(',')
+                sb.append(info.forbidUntil).append(',')
+                sb.append(info.title).append(',')
+                sb.append(info.lastTime).append(',')
+                sb.append(info.energy).append(',')
+                sb.append(info.maxScore).append(',')
+                sb.append(info.rbWinCount).append(',')
+                sb.append(info.rbGameCount).append(',')
+                sb.append(info.blackWinCount).append(',')
+                sb.append(info.blackGameCount)
+                listOf(Killer, Stealer, Collector, Mutator, Pioneer, Disturber, Sweeper).forEach {
+                    sb.append(',').append(info.blacksWinCount[it] ?: 0)
+                    sb.append(',').append(info.blacksGameCount[it] ?: 0)
+                }
+                sb.append('\n')
+                deadPlayers.add(info.name)
+            }
+            if (deadPlayers.isNotEmpty())
+                writeFile("playerInfo_dead.csv", sb.toString().toByteArray(), true)
+            runBlocking {
+                deadPlayers.forEach {
+                    playerInfoMap.remove(it)
+                    QQPusher.removeHistory(it)
+                }
+                countChannel.send(deadPlayers.size)
+            }
+            if (deadPlayers.isNotEmpty())
+                savePlayerInfo()
+        }
+        return runBlocking {
+            countChannel.receive()
         }
     }
 
@@ -511,9 +543,14 @@ object Statistics {
     ) : Comparable<PlayerInfo> {
         val scoreWithDecay: Int
             get() {
+                return scoreWithDecayWithoutLimit.coerceAtLeast(0)
+            }
+
+        internal val scoreWithDecayWithoutLimit: Int
+            get() {
                 val days = ((System.currentTimeMillis() - lastTime) / (24 * 3600000L)).toInt()
                 val decay = days / 7 * 20
-                return (score - decay).coerceAtLeast(0)
+                return score - decay
             }
 
         override fun compareTo(other: PlayerInfo) = when {

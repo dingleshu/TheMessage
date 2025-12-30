@@ -113,7 +113,6 @@ class JoinRoomTos : ProtoHandler {
                 }
             }
             player.playerName = playerName
-            player.playerTitle = playerInfo.title
             val count = PlayerGameCount(playerInfo.winCount, playerInfo.gameCount)
             if (!newGame.onPlayerJoinRoom(player, count)) {
                 Game.playerNameCache.remove(playerName) // 登录失败的话，要把注册清掉
@@ -132,12 +131,11 @@ class JoinRoomTos : ProtoHandler {
                         gameCounts.add(0)
                         ranks.add("")
                         scores.add(0)
-                        title.add("")
                         continue
                     }
                     val name = p.playerName
                     val score = Statistics.getScore(name) ?: 0
-                    val rank = if (p is HumanPlayer) ScoreFactory.getRankNameByScore(score) else ""
+                    val rank = if (p is HumanPlayer) ScoreFactory.getRankStringNameByScore(score) else ""
                     names.add(name)
                     val c =
                         if (p is HumanPlayer) Statistics.getPlayerGameCount(p.playerName)
@@ -146,7 +144,6 @@ class JoinRoomTos : ProtoHandler {
                     gameCounts.add(c.gameCount)
                     ranks.add(rank)
                     scores.add(score)
-                    title.add(p.playerTitle)
                 }
                 notice = "${Config.Notice.get()}\n\n${Statistics.rankList25.get()}"
                 roomId = newGame.id
